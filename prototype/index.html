@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HUNCH — The Authentic Atelier · Custom Jersey</title>
+  <meta name="description" content="HUNCH — luxury matchwear, made to your name. Customise authentic jerseys with player or personal lettering and official competition patches." />
+
+  <!-- Display + UI -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Competition lettering stand-ins (one per competition) -->
+  <link href="https://fonts.googleapis.com/css2?family=Saira:wght@500;600;700;800&family=Archivo:wght@600;700;800&family=Oswald:wght@500;600;700&family=Teko:wght@500;600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+
+  <!-- ===================== NAV ===================== -->
+  <header class="nav">
+    <nav class="nav__links" aria-label="Primary">
+      <a href="#">Atelier</a>
+      <a href="#">Collections</a>
+      <a href="#">The House</a>
+    </nav>
+    <a class="nav__brand" href="#" aria-label="HUNCH home">HUNCH</a>
+    <div class="nav__right">
+      <button class="nav__icon" aria-label="Search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+      </button>
+      <button class="nav__icon nav__bag" aria-label="Bag">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>
+        <span class="nav__bag-count" id="bag-count" style="display:none">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===================== PDP ===================== -->
+  <main class="pdp">
+
+    <!-- ---------- STAGE ---------- -->
+    <section class="stage" aria-label="Jersey preview">
+      <div class="stage__frame">
+        <span class="stage__edition" id="stage-edition"></span>
+        <span class="stage__tag"><span class="dot"></span>Authentic · Made to order</span>
+        <div class="stage__jersey" id="stage-jersey"></div>
+        <div class="viewtoggle" role="group" aria-label="View">
+          <button data-view="front">Front</button>
+          <button data-view="back" class="is-active">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- PANEL ---------- -->
+    <section class="panel" aria-label="Product details and customization">
+
+      <div class="panel__head">
+        <span class="eyebrow">The Authentic Atelier</span>
+        <h1 class="panel__title">Made-to-Name<br/>Match Jersey</h1>
+        <div class="panel__price">
+          <span class="amt" id="head-price">From $158</span>
+          <span class="meta">· Personalisation included in your bag</span>
+        </div>
+      </div>
+
+      <!-- TEAM -->
+      <div class="section">
+        <div class="section__label">Select Club <span class="hint">6 houses</span></div>
+        <div class="teams" id="teams"></div>
+      </div>
+
+      <!-- COMPETITION / PATCH -->
+      <div class="section">
+        <div class="section__label">Competition &amp; Sleeve Patch
+          <span class="hint">sets lettering style</span></div>
+        <div class="segment" id="competition" role="group" aria-label="Competition"></div>
+        <div class="patchrow" id="patch-preview" style="margin-top:14px"></div>
+      </div>
+
+      <!-- PERSONALISATION -->
+      <div class="section">
+        <div class="section__label">Personalisation</div>
+        <div class="segment" id="mode" role="group" aria-label="Personalisation mode" style="margin-bottom:16px">
+          <button data-mode="player" class="is-active">Squad Player</button>
+          <button data-mode="custom">Your Name</button>
+        </div>
+
+        <div class="roster" id="roster"></div>
+
+        <div id="custom" style="display:none">
+          <div class="fields">
+            <div class="field">
+              <label for="in-name">Name</label>
+              <input id="in-name" type="text" maxlength="14" autocomplete="off" placeholder="YOUR NAME" />
+            </div>
+            <div class="field">
+              <label for="in-number">No.</label>
+              <input id="in-number" type="text" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="00" />
+            </div>
+          </div>
+          <p class="field note" style="margin-top:12px">Up to 14 characters &amp; 2 digits. Rendered live in the selected competition's typeface.</p>
+        </div>
+      </div>
+
+      <!-- SIZE -->
+      <div class="section">
+        <div class="section__label">Size <span class="hint">Authentic fit</span></div>
+        <div class="sizes" id="sizes"></div>
+      </div>
+
+      <!-- SUMMARY + CTA -->
+      <div class="summary">
+        <div class="summary__row"><span class="muted">Jersey</span><span id="sum-base">$165</span></div>
+        <div class="summary__row" id="sum-custom-row"><span class="muted">Personalisation</span><span id="sum-custom">$25</span></div>
+        <div class="summary__row total">
+          <span class="lbl">Total</span><span class="val" id="sum-total">$190</span>
+        </div>
+        <p class="field note" id="sum-line" style="margin-top:2px"></p>
+      </div>
+
+      <button class="cta" id="cta">
+        Add to Bag
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+
+      <div class="assurances">
+        <span class="assurance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z"/></svg>Officially licensed authentic</span>
+        <span class="assurance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7h18v10H3z"/><path d="M3 11h18"/></svg>Heat-pressed in atelier</span>
+        <span class="assurance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0Z"/><path d="m9 12 2 2 4-4"/></svg>Complimentary returns</span>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4 4 10-10"/></svg>
+    <span id="toast-text">Added to bag</span>
+  </div>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
