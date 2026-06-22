@@ -12,18 +12,22 @@ import { useCart } from "./CartProvider";
 
 type Mode = "player" | "custom";
 
-export function Configurator() {
-  const [teamId, setTeamId] = useState<TeamId>("barcelona");
-  const [competition, setCompetition] = useState<CompetitionId>("laliga");
+interface Props {
+  defaultTeam?: TeamId;
+}
+
+export function Configurator({ defaultTeam = "barcelona" }: Props) {
+  const [teamId, setTeamId] = useState<TeamId>(defaultTeam);
+  const [competition, setCompetition] = useState<CompetitionId>(TEAMS[defaultTeam].league);
   const [view, setView] = useState<View>("back");
   const [mode, setMode] = useState<Mode>("player");
   const [player, setPlayer] = useState(0);
-  const [name, setName] = useState(TEAMS["barcelona"].roster[0].name);
-  const [number, setNumber] = useState(String(TEAMS["barcelona"].roster[0].number));
+  const [name, setName] = useState(TEAMS[defaultTeam].roster[0].name);
+  const [number, setNumber] = useState(String(TEAMS[defaultTeam].roster[0].number));
   const [size, setSize] = useState("M");
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { count: bag, addItem } = useCart();
+  const { count: bag, addItem, openDrawer } = useCart();
 
   const team = TEAMS[teamId];
   const comp = COMPETITIONS[competition];
@@ -31,7 +35,6 @@ export function Configurator() {
 
   function selectTeam(id: TeamId) {
     setTeamId(id);
-    // keep UCL if already selected; otherwise snap to the new club's domestic league
     if (competition !== "ucl") setCompetition(TEAMS[id].league);
     if (mode === "player") {
       setPlayer(0);
@@ -52,8 +55,6 @@ export function Configurator() {
     setNumber(String(team.roster[i].number));
   }
   function addToBag() {
-    // Personalization travels with the line as Shopify custom attributes →
-    // it reaches checkout and the order as the atelier's print spec.
     void addItem([
       { key: "Club", value: team.name },
       { key: "Competition", value: comp.label },
@@ -62,9 +63,12 @@ export function Configurator() {
       { key: "Number", value: number },
       { key: "Size", value: size },
     ]);
-    setToast(`${team.name} ${name} ${number} · ${size} added to bag`);
+    const msg = `${team.name} · ${name} ${number} · ${size} added`;
+    setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2600);
+    // open drawer after a brief moment so the toast is seen first
+    setTimeout(() => openDrawer(), 400);
   }
 
   const personalised = name || number ? CUSTOMIZATION_FEE : 0;
@@ -73,22 +77,6 @@ export function Configurator() {
 
   return (
     <>
-      <header className="nav">
-        <nav className="nav__links" aria-label="Primary">
-          <a href="#">Atelier</a><a href="#">Collections</a><a href="#">The House</a>
-        </nav>
-        <a className="nav__brand" href="#" aria-label="HUNCH home">HUNCH</a>
-        <div className="nav__right">
-          <button className="nav__icon" aria-label="Search">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></svg>
-          </button>
-          <button className="nav__icon nav__bag" aria-label="Bag">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M6 8h12l-1 12H7L6 8Z" /><path d="M9 8a3 3 0 0 1 6 0" /></svg>
-            {bag > 0 && <span className="nav__bag-count">{bag}</span>}
-          </button>
-        </div>
-      </header>
-
       <main className="pdp">
         <JerseyStage teamId={teamId} competition={competition} view={view} name={name} number={number} onSetView={setView} />
 
@@ -198,13 +186,24 @@ export function Configurator() {
 
           <button className="cta" onClick={addToBag}>
             Add to Bag
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
           </button>
 
           <div className="assurances">
-            <span className="assurance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z" /></svg>Officially licensed authentic</span>
-            <span className="assurance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7h18v10H3z" /><path d="M3 11h18" /></svg>Heat-pressed in atelier</span>
-            <span className="assurance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0Z" /><path d="m9 12 2 2 4-4" /></svg>Complimentary returns</span>
+            <span className="assurance">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z" /></svg>
+              Officially licensed authentic
+            </span>
+            <span className="assurance">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7h18v10H3z" /><path d="M3 11h18" /></svg>
+              Heat-pressed in atelier
+            </span>
+            <span className="assurance">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0Z" /><path d="m9 12 2 2 4-4" /></svg>
+              Complimentary returns
+            </span>
           </div>
         </section>
       </main>
@@ -213,7 +212,6 @@ export function Configurator() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m5 12 4 4 10-10" /></svg>
         <span>{toast ?? "Added to bag"}</span>
       </div>
-
     </>
   );
 }
