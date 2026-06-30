@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { TEAMS, COMPETITIONS, printFor, letteringFont, patchImageFor, sleeveFor, type TeamId, type CompetitionId, type View } from "@/lib/catalog";
+import { TEAMS, COMPETITIONS, printFor, letteringFont, patchImageFor, sleeveFor, type Team, type TeamId, type Competition, type CompetitionId, type View, type PrintEntry } from "@/lib/catalog";
 import { JerseySilhouette, PhotoOverlay, SleeveOverlay } from "./art";
 
 interface Props {
@@ -11,6 +11,9 @@ interface Props {
   name: string;       // raw (already display-cased by caller)
   number: string;
   onSetView: (v: View) => void;
+  teams?: Record<TeamId, Team>;
+  competitions?: Record<CompetitionId, Competition>;
+  printMap?: Partial<Record<string, PrintEntry>>;
 }
 
 /* Real photo base + overlay; self-resets per src and falls back on load error. */
@@ -56,18 +59,20 @@ function PhotoKit({
   );
 }
 
-export function JerseyStage({ teamId, competition, view, name, number, onSetView }: Props) {
-  const team = TEAMS[teamId];
-  const comp = COMPETITIONS[competition];
-  const print = printFor(teamId, competition, view);
-  const displayName = comp.uppercase ? name.toUpperCase() : name;
-  const fontFamily = letteringFont(teamId, competition);
+export function JerseyStage({ teamId, competition, view, name, number, onSetView, teams: teamsOverride, competitions: competitionsOverride, printMap }: Props) {
+  const teamMap = teamsOverride ?? TEAMS;
+  const compMap = competitionsOverride ?? COMPETITIONS;
+  const team = teamMap[teamId] ?? Object.values(teamMap)[0];
+  const comp = compMap[competition] ?? compMap[team?.league as CompetitionId] ?? Object.values(compMap)[0];
+  const print = printFor(teamId, competition, view, printMap);
+  const displayName = comp?.uppercase ? name.toUpperCase() : name;
+  const fontFamily = letteringFont(teamId, competition, compMap);
 
-  const isUCL = comp.kind === "continental";
-  const fill = isUCL ? team.kit.uclFill : team.kit.leagueFill;
-  const stroke = !isUCL && team.kit.leagueStroke && team.kit.leagueStroke !== "none" ? team.kit.leagueStroke : "none";
-  const patchImage = patchImageFor(teamId, competition);
-  const sleeve = sleeveFor(teamId, competition);
+  const isUCL = comp?.kind === "continental";
+  const fill = isUCL ? team?.kit.uclFill : team?.kit.leagueFill;
+  const stroke = !isUCL && team?.kit.leagueStroke && team?.kit.leagueStroke !== "none" ? team?.kit.leagueStroke : "none";
+  const patchImage = patchImageFor(teamId, competition, printMap);
+  const sleeve = sleeveFor(teamId, competition, printMap);
 
   const silhouette = (
     <JerseySilhouette team={team} competition={comp} name={displayName} number={number} view={view} fontFamily={fontFamily} />

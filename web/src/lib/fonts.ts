@@ -1,6 +1,7 @@
 import {
   Cormorant,
   Montserrat,
+  Jost,
   Saira,
   Archivo,
   Oswald,
@@ -19,6 +20,11 @@ export const montserrat = Montserrat({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   variable: "--font-montserrat",
+});
+export const jost = Jost({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-jost",
 });
 
 /* competition lettering stand-ins */
@@ -42,5 +48,5 @@ export const fcbLiga = localFont({
 
 /* all font CSS-variable classNames, applied once on <body> */
 export const fontVariables = [
-  cormorant, montserrat, saira, archivo, oswald, teko, rajdhani, fcbUcl, fcbLiga,
+  cormorant, montserrat, jost, saira, archivo, oswald, teko, rajdhani, fcbUcl, fcbLiga,
 ].map((f) => f.variable).join(" ");

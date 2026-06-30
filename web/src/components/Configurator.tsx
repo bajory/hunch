@@ -2,9 +2,9 @@
 
 import { useState, useRef } from "react";
 import {
-  TEAMS, COMPETITIONS, PATCHES, SIZES, CUSTOMIZATION_FEE,
-  competitionsForTeam, patchImageFor,
-  type TeamId, type CompetitionId, type View,
+  PATCHES, SIZES, CUSTOMIZATION_FEE,
+  patchImageFor,
+  type Team, type TeamId, type Competition, type CompetitionId, type View, type PrintEntry,
 } from "@/lib/catalog";
 import { JerseyStage } from "./jersey/JerseyStage";
 import { PatchIcon } from "./jersey/art";
@@ -14,32 +14,37 @@ type Mode = "player" | "custom";
 
 interface Props {
   defaultTeam?: TeamId;
+  teams: Record<TeamId, Team>;
+  competitions: Record<CompetitionId, Competition>;
+  printMap: Partial<Record<string, PrintEntry>>;
 }
 
-export function Configurator({ defaultTeam = "barcelona" }: Props) {
+export function Configurator({ defaultTeam = "barcelona", teams, competitions, printMap }: Props) {
   const [teamId, setTeamId] = useState<TeamId>(defaultTeam);
-  const [competition, setCompetition] = useState<CompetitionId>(TEAMS[defaultTeam].league);
+  const [competition, setCompetition] = useState<CompetitionId>(teams[defaultTeam].league);
   const [view, setView] = useState<View>("back");
   const [mode, setMode] = useState<Mode>("player");
   const [player, setPlayer] = useState(0);
-  const [name, setName] = useState(TEAMS[defaultTeam].roster[0].name);
-  const [number, setNumber] = useState(String(TEAMS[defaultTeam].roster[0].number));
+  const [name, setName] = useState(teams[defaultTeam].roster[0]?.name ?? "");
+  const [number, setNumber] = useState(String(teams[defaultTeam].roster[0]?.number ?? ""));
   const [size, setSize] = useState("M");
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { count: bag, addItem, openDrawer } = useCart();
 
-  const team = TEAMS[teamId];
-  const comp = COMPETITIONS[competition];
-  const comps = competitionsForTeam(teamId);
+  const team = teams[teamId] ?? teams[defaultTeam] ?? Object.values(teams)[0];
+  const comp = competitions[competition] ?? competitions[team?.league as CompetitionId] ?? Object.values(competitions)[0];
+  const comps: CompetitionId[] = [teams[teamId]?.league ?? "ucl", "ucl"].filter(
+    (id, i, arr) => arr.indexOf(id) === i
+  ) as CompetitionId[];
 
   function selectTeam(id: TeamId) {
     setTeamId(id);
-    if (competition !== "ucl") setCompetition(TEAMS[id].league);
+    if (competition !== "ucl") setCompetition(teams[id].league);
     if (mode === "player") {
       setPlayer(0);
-      setName(TEAMS[id].roster[0].name);
-      setNumber(String(TEAMS[id].roster[0].number));
+      setName(teams[id].roster[0]?.name ?? "");
+      setNumber(String(teams[id].roster[0]?.number ?? ""));
     }
   }
   function selectMode(m: Mode) {
@@ -58,7 +63,7 @@ export function Configurator({ defaultTeam = "barcelona" }: Props) {
     void addItem([
       { key: "Club", value: team.name },
       { key: "Competition", value: comp.label },
-      { key: "Patch", value: PATCHES[patch].label },
+      { key: "Patch", value: patchMeta.label },
       { key: "Name", value: name },
       { key: "Number", value: number },
       { key: "Size", value: size },
@@ -72,13 +77,14 @@ export function Configurator({ defaultTeam = "barcelona" }: Props) {
   }
 
   const personalised = name || number ? CUSTOMIZATION_FEE : 0;
-  const total = team.price + personalised;
-  const patch = comp.patch;
+  const total = (team?.price ?? 0) + personalised;
+  const patch = comp?.patch ?? competition;
+  const patchMeta = PATCHES[patch] ?? { label: comp?.label ?? patch, sleeve: "Right sleeve" };
 
   return (
     <>
       <main className="pdp">
-        <JerseyStage teamId={teamId} competition={competition} view={view} name={name} number={number} onSetView={setView} />
+        <JerseyStage teamId={teamId} competition={competition} view={view} name={name} number={number} onSetView={setView} teams={teams} competitions={competitions} printMap={printMap} />
 
         <section className="panel" aria-label="Product details and customization">
           <div className="panel__head">
@@ -94,7 +100,7 @@ export function Configurator({ defaultTeam = "barcelona" }: Props) {
           <div className="section">
             <div className="section__label">Select Club <span className="hint">6 houses</span></div>
             <div className="teams">
-              {Object.values(TEAMS).map((t) => (
+              {Object.values(teams).map((t) => (
                 <button key={t.id} className={`team${t.id === teamId ? " is-active" : ""}`} onClick={() => selectTeam(t.id)}>
                   <span className="team__swatch" style={{
                     background: t.kit.stripes
@@ -113,15 +119,15 @@ export function Configurator({ defaultTeam = "barcelona" }: Props) {
             <div className="segment" role="group" aria-label="Competition">
               {comps.map((id) => (
                 <button key={id} className={id === competition ? "is-active" : ""} onClick={() => setCompetition(id)}>
-                  {COMPETITIONS[id].label}
+                  {competitions[id]?.label}
                 </button>
               ))}
             </div>
             <div className="patchrow" style={{ marginTop: 14 }}>
-              <PatchIcon competition={patch} imageUrl={patchImageFor(teamId, competition)} />
+              <PatchIcon competition={patch} imageUrl={patchImageFor(teamId, competition, printMap)} />
               <span className="pinfo">
-                <span className="pttl">{PATCHES[patch].label} patch</span>
-                <span className="psub">{PATCHES[patch].sleeve} · lettering set in {comp.label} typeface</span>
+                <span className="pttl">{patchMeta.label} patch</span>
+                <span className="psub">{patchMeta.sleeve} · lettering set in {comp.label} typeface</span>
               </span>
             </div>
           </div>

@@ -1,17 +1,13 @@
 import Link from "next/link";
-import { TEAMS, COMPETITIONS } from "@/lib/catalog";
-import { JerseySilhouette } from "@/components/jersey/art";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "The House — HUNCH",
-  description: "The story of HUNCH — a luxury atelier built on the belief that the shirt you wear matters.",
+  description:
+    "The story of HUNCH — a luxury atelier built on the belief that the shirt you wear matters.",
 };
 
 export default function TheHouse() {
-  const featured = TEAMS["real-madrid"];
-  const comp = COMPETITIONS["laliga"];
-
   return (
     <main>
       {/* ── Hero ── */}
@@ -24,25 +20,20 @@ export default function TheHouse() {
             mattered.
           </h1>
           <p className="house-hero__body">
-            HUNCH was born from a single conviction: that the most iconic garment in sport
-            deserves to be worn as art. We work with the original manufacturers, in the
-            original fabrics, with the competition&apos;s official typefaces pressed by hand
-            in our atelier.
+            HUNCH was born from a single conviction: that the most iconic garment
+            in sport deserves to be worn as art. We work with the original
+            manufacturers, in the original fabrics, with the competition&apos;s
+            official typefaces pressed by hand in our London atelier.
           </p>
           <p className="house-hero__body">
-            Every jersey that leaves our studio carries a name — yours, or the player
-            who made you fall in love with the game.
+            Every jersey that leaves our studio carries a name — yours, or the
+            player who made you fall in love with the game.
           </p>
         </div>
+
+        {/* Text-art visual — large ghosted HUNCH lettering */}
         <div className="house-hero__visual" aria-hidden="true">
-          <JerseySilhouette
-            team={featured}
-            competition={comp}
-            name="HUNCH"
-            number="01"
-            view="back"
-            fontFamily={comp.fontFamily}
-          />
+          HUNCH
         </div>
       </div>
 
@@ -60,7 +51,7 @@ export default function TheHouse() {
           </div>
           <div className="house-value">
             <div className="house-value__num">02</div>
-            <div className="house-value__title">Atelier-Made</div>
+            <div className="house-value__title">Atelier&#8209;Made</div>
             <p className="house-value__body">
               Your name and number are heat-transferred using competition-licensed
               lettering in our London studio. No outsourcing. Every order is
@@ -82,6 +73,7 @@ export default function TheHouse() {
       {/* ── Manifesto ── */}
       <div className="house-manifesto">
         <div className="house-manifesto__inner">
+          <div className="house-manifesto__rule" aria-hidden="true" />
           <p className="house-manifesto__quote">
             &ldquo;A shirt with your name on the back isn&apos;t merchandise.
             It&apos;s a declaration of where you were, who you watched,
@@ -98,7 +90,7 @@ export default function TheHouse() {
           <h2 className="house-cta__headline">Choose your club.</h2>
           <Link href="/collections" className="house-cta__btn">
             View the Collection
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
           </Link>

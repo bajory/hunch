@@ -178,8 +178,8 @@ export function competitionsForTeam(teamId: TeamId): CompetitionId[] {
   return [TEAMS[teamId].league, "ucl"];
 }
 
-export function printFor(teamId: TeamId, competition: CompetitionId, view: View): ResolvedPrint | null {
-  const p = PRINT[teamId];
+export function printFor(teamId: TeamId, competition: CompetitionId, view: View, printMap?: Partial<Record<string, PrintEntry>>): ResolvedPrint | null {
+  const p = (printMap ?? PRINT)[teamId];
   const src = p?.images?.[competition]?.[view];
   if (!src) return null;
   return {
@@ -190,18 +190,19 @@ export function printFor(teamId: TeamId, competition: CompetitionId, view: View)
 }
 
 /** Real patch image for a team+competition, or null if none uploaded. */
-export function patchImageFor(teamId: TeamId, competition: CompetitionId): string | null {
-  return PRINT[teamId]?.patchImages?.[competition] ?? null;
+export function patchImageFor(teamId: TeamId, competition: CompetitionId, printMap?: Partial<Record<string, PrintEntry>>): string | null {
+  return (printMap ?? PRINT)[teamId]?.patchImages?.[competition] ?? null;
 }
 
 /** Sleeve patch geometry for a team+competition, or null if none uploaded. */
-export function sleeveFor(teamId: TeamId, competition: CompetitionId): SleeveGeo | null {
-  return PRINT[teamId]?.sleeveImages?.[competition] ?? null;
+export function sleeveFor(teamId: TeamId, competition: CompetitionId, printMap?: Partial<Record<string, PrintEntry>>): SleeveGeo | null {
+  return (printMap ?? PRINT)[teamId]?.sleeveImages?.[competition] ?? null;
 }
 
 /** Official-font override per team (string or per-competition), else the competition stand-in. */
-export function letteringFont(teamId: TeamId, competition: CompetitionId): string {
+export function letteringFont(teamId: TeamId, competition: CompetitionId, competitionsMap?: Record<string, Competition>): string {
   const ov = PRINT[teamId]?.font;
   const o = typeof ov === "string" ? ov : ov?.[competition];
-  return o || COMPETITIONS[competition].fontFamily;
+  const compMap = competitionsMap ?? COMPETITIONS;
+  return o || compMap[competition]?.fontFamily || "sans-serif";
 }

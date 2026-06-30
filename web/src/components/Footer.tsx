@@ -10,7 +10,8 @@ export function Footer() {
         <div>
           <div className="footer__brand-name">HUNCH</div>
           <p className="footer__brand-desc">
-            Luxury match jerseys, made to your name. Atelier-pressed to the exact specification of the game.
+            Luxury match jerseys, made to your name. Atelier-pressed to the
+            exact specification of the game.
           </p>
         </div>
 
@@ -42,7 +43,7 @@ export function Footer() {
           <div className="footer__col-title">Support</div>
           <nav className="footer__links" aria-label="Support">
             <a href="mailto:studio@hunch.co">Contact Studio</a>
-            <Link href="#">Shipping & Returns</Link>
+            <Link href="#">Shipping &amp; Returns</Link>
             <Link href="#">Size Guide</Link>
             <Link href="#">FAQ</Link>
           </nav>

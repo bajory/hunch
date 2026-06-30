@@ -1,29 +1,34 @@
 import Link from "next/link";
-import { TEAMS, COMPETITIONS } from "@/lib/catalog";
+import { getCatalog } from "@/lib/cms";
 import { JerseySilhouette } from "@/components/jersey/art";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Collections — HUNCH",
-  description: "Browse all six HUNCH luxury jersey collections. Authentic matchwear for the season's elite clubs.",
+  description:
+    "Browse all HUNCH luxury jersey collections. Authentic player-issue matchwear for the season's elite clubs, made to your name.",
 };
 
-export default function Collections() {
+export default async function Collections() {
+  const { teams, competitions } = await getCatalog();
   return (
     <main>
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="collections-header">
-        <div>
+        <div className="collections-kicker">
           <span className="eyebrow">Season 25 / 26</span>
-          <h1 className="collections-headline">The Collection</h1>
+          <span className="collections-kicker-rule" aria-hidden="true" />
         </div>
-        <p className="collections-meta">6 clubs · 5 competitions · made to your name</p>
+        <h1 className="collections-headline">The Collection</h1>
+        <p className="collections-sub">
+          {Object.keys(teams).length} clubs &nbsp;·&nbsp; {Object.keys(competitions).length} competitions &nbsp;·&nbsp; made to your name
+        </p>
       </div>
 
-      {/* Grid */}
+      {/* ── Grid ── */}
       <div className="collections-grid">
-        {Object.values(TEAMS).map((team) => {
-          const comp = COMPETITIONS[team.league];
+        {Object.values(teams).map((team) => {
+          const comp = competitions[team.league];
           return (
             <Link
               key={team.id}
@@ -42,13 +47,15 @@ export default function Collections() {
                 />
               </div>
               <div className="club-card__body">
-                <div className="club-card__name">{team.name}</div>
                 <div className="club-card__edition">{team.edition}</div>
+                <div className="club-card__name">{team.name}</div>
                 <div className="club-card__footer">
-                  <span className="club-card__price">From ${team.price}</span>
+                  <span className="club-card__price">
+                    <small>From</small>${team.price}
+                  </span>
                   <span className="club-card__cta">
-                    Customise
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    Personalise
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path d="M5 12h14M13 6l6 6-6 6" />
                     </svg>
                   </span>
