@@ -1,9 +1,5 @@
 import type { Metadata } from "next";
 import { fontVariables } from "@/lib/fonts";
-import { CartProvider } from "@/components/CartProvider";
-import { Nav } from "@/components/Nav";
-import { CartDrawer } from "@/components/CartDrawer";
-import { Footer } from "@/components/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,18 +8,16 @@ export const metadata: Metadata = {
     "HUNCH — luxury matchwear, made to your name. Customise authentic jerseys with player or personal lettering and official competition patches.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+// Applies the saved theme before first paint (light is the default; only
+// "dark" sets an attribute). Inline + blocking on purpose — avoids a flash.
+const themeInit = `try{if(localStorage.getItem("hunch-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}`;
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={fontVariables}>
-        <CartProvider>
-          <Nav />
-          {children}
-          <CartDrawer />
-          <Footer />
-        </CartProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className={fontVariables} suppressHydrationWarning>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+        {children}
       </body>
     </html>
   );

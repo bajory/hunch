@@ -8,26 +8,30 @@ function attr(attributes: CartAttribute[], key: string): string {
 }
 
 function CartItemRow({ item }: { item: CartItem }) {
-  const club = attr(item.attributes, "Club");
-  const competition = attr(item.attributes, "Competition");
+  const team = attr(item.attributes, "Team") || attr(item.attributes, "Club");
+  const kitType = attr(item.attributes, "Kit Type");
+  const season = attr(item.attributes, "Season");
+  const size = attr(item.attributes, "Size");
   const name = attr(item.attributes, "Name");
   const number = attr(item.attributes, "Number");
-  const size = attr(item.attributes, "Size");
+  const image = attr(item.attributes, "_Image");
 
   return (
-    <div className="cart-item">
-      <div className="cart-item__top">
-        <span className="cart-item__club">{club}</span>
-        <span className="cart-item__competition">{competition}</span>
-      </div>
-      {(name || number) && (
-        <div className="cart-item__personalization">
-          {name && number ? `${name} · ${number}` : name || number}
+    <div className="cart__item">
+      {image && (
+        <div className="cart__item-media">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image} alt="" />
         </div>
       )}
-      <div className="cart-item__attrs">
-        <span className="cart-item__attr">{size}</span>
-        {competition && <span className="cart-item__attr">{competition}</span>}
+      <div className="cart__item-body">
+        <span className="cart__item-name">{team}</span>
+        <span className="cart__item-attrs">
+          {[kitType, season, size && `Size ${size}`].filter(Boolean).join(" · ")}
+          {(name || number) && (
+            <><br />{[name, number].filter(Boolean).join(" ")} · Personalised</>
+          )}
+        </span>
       </div>
     </div>
   );
@@ -38,59 +42,48 @@ export function CartDrawer() {
 
   return (
     <>
-      {/* overlay */}
       <div
-        className={`drawer-overlay${drawerOpen ? " is-open" : ""}`}
+        className={`cartveil${drawerOpen ? " is-open" : ""}`}
         onClick={closeDrawer}
         aria-hidden="true"
       />
 
-      {/* panel */}
       <aside
-        className={`cart-drawer${drawerOpen ? " is-open" : ""}`}
+        className={`cart${drawerOpen ? " is-open" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label="Your bag"
       >
-        <div className="cart-drawer__head">
-          <h2 className="cart-drawer__title">
-            {count > 0 ? `Your Bag (${count})` : "Your Bag"}
-          </h2>
-          <button className="cart-drawer__close" onClick={closeDrawer} aria-label="Close bag">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <div className="cart__head">
+          <h2 className="cart__title">{count > 0 ? `Bag · ${count}` : "Bag"}</h2>
+          <button className="cart__close" onClick={closeDrawer} aria-label="Close bag">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="cart-drawer__body">
+        <div className="cart__body">
           {items.length === 0 ? (
-            <div className="cart-drawer__empty">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                <path d="M6 8h12l-1 12H7L6 8Z" />
-                <path d="M9 8a3 3 0 0 1 6 0" />
-              </svg>
-              Your bag is empty
+            <div className="cart__empty">
+              <span className="microlabel">Nothing here yet</span>
+              <p>Your bag is empty.</p>
             </div>
           ) : (
             items.map((item) => <CartItemRow key={item.id} item={item} />)
           )}
         </div>
 
-        <div className="cart-drawer__foot">
+        <div className="cart__foot">
           <button
-            className="cart-drawer__checkout"
+            className="btn"
+            style={{ width: "100%", justifyContent: "center" }}
             disabled={!checkoutUrl && items.length === 0}
-            onClick={() => {
-              if (checkoutUrl) window.open(checkoutUrl, "_blank");
-            }}
+            onClick={() => { if (checkoutUrl) window.open(checkoutUrl, "_blank"); }}
           >
-            Proceed to Checkout
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
+            Checkout
           </button>
-          <p className="cart-drawer__note">Secure checkout · Complimentary returns</p>
+          <span className="microlabel" style={{ textAlign: "center" }}>Secure checkout · Complimentary returns</span>
         </div>
       </aside>
     </>

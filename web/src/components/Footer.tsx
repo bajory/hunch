@@ -1,62 +1,50 @@
 import Link from "next/link";
+import { FooterMark } from "./motion/FooterMark";
 
 export function Footer() {
   const year = new Date().getFullYear();
 
   return (
     <footer className="footer">
-      <div className="footer__inner">
-        {/* Brand */}
-        <div>
-          <div className="footer__brand-name">HUNCH</div>
-          <p className="footer__brand-desc">
-            Luxury match jerseys, made to your name. Atelier-pressed to the
-            exact specification of the game.
+      <div className="footer__grid">
+        <div className="footer__col">
+          <h4>HUNCH</h4>
+          <p className="footer__note">
+            Authentic matchwear, sourced and pressed with the care of an
+            atelier. The shirt is the product — everything else is restraint.
           </p>
         </div>
-
-        {/* Shop */}
-        <div>
-          <div className="footer__col-title">Shop</div>
-          <nav className="footer__links" aria-label="Shop">
-            <Link href="/collections">All Collections</Link>
-            <Link href="/jerseys/barcelona">FC Barcelona</Link>
-            <Link href="/jerseys/real-madrid">Real Madrid</Link>
-            <Link href="/jerseys/man-city">Manchester City</Link>
-            <Link href="/jerseys/liverpool">Liverpool</Link>
+        <div className="footer__col">
+          <h4>Shop</h4>
+          <nav aria-label="Shop">
+            <Link href="/shop">All Jerseys</Link>
+            <Link href="/shop?kind=club">Clubs 26/27</Link>
+            <Link href="/shop?kind=national">World Cup 2026</Link>
           </nav>
         </div>
-
-        {/* Atelier */}
-        <div>
-          <div className="footer__col-title">Atelier</div>
-          <nav className="footer__links" aria-label="Atelier">
-            <Link href="/atelier">How It Works</Link>
-            <Link href="/the-house">The House</Link>
-            <Link href="/atelier#materials">Materials</Link>
-            <Link href="/atelier#sizing">Size Guide</Link>
+        <div className="footer__col">
+          <h4>The House</h4>
+          <nav aria-label="The House">
+            <Link href="/house">Our Story</Link>
+            <Link href="/house#craft">Personalisation</Link>
+            <Link href="/house#sizing">Size Guide</Link>
           </nav>
         </div>
-
-        {/* Support */}
-        <div>
-          <div className="footer__col-title">Support</div>
-          <nav className="footer__links" aria-label="Support">
+        <div className="footer__col">
+          <h4>Support</h4>
+          <nav aria-label="Support">
             <a href="mailto:studio@hunch.co">Contact Studio</a>
             <Link href="#">Shipping &amp; Returns</Link>
-            <Link href="#">Size Guide</Link>
             <Link href="#">FAQ</Link>
           </nav>
         </div>
       </div>
 
-      <div className="footer__bottom">
+      <FooterMark />
+
+      <div className="footer__legal">
         <span>© {year} HUNCH Studio Ltd. All rights reserved.</span>
-        <div className="footer__legal">
-          <Link href="#">Privacy</Link>
-          <Link href="#">Terms</Link>
-          <Link href="#">Cookies</Link>
-        </div>
+        <span>Authentic · Player Version · Made to order</span>
       </div>
     </footer>
   );

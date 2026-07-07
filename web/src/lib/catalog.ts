@@ -6,14 +6,22 @@
    (see src/lib/cms.ts). Fonts reference next/font CSS variables.
    ========================================================================= */
 
-export type CompetitionId = "laliga" | "premier" | "seriea" | "bundesliga" | "ucl";
+export type CompetitionId = "laliga" | "premier" | "seriea" | "bundesliga" | "ligue1" | "ucl" | "worldcup";
 export type TeamId = "real-madrid" | "barcelona" | "man-city" | "liverpool" | "inter" | "bayern";
 export type View = "front" | "back";
+export type KitTypeId = "home" | "away" | "third" | "fourth" | "retro" | "special";
+
+/** Home stays keyed by the bare competition id (backward compatible with the
+    local PRINT fallback below, which predates kit types); every other kit
+    type gets its own suffixed slot so it can carry independent calibration. */
+export function printSlot(competition: CompetitionId | string, kitType: KitTypeId = "home"): string {
+  return kitType === "home" ? competition : `${competition}__${kitType}`;
+}
 
 export interface Competition {
   id: CompetitionId;
   label: string;
-  kind: "league" | "continental";
+  kind: "league" | "continental" | "international";
   patch: CompetitionId;
   fontFamily: string;
   nameWeight: number;
@@ -52,8 +60,17 @@ export interface Team {
   roster: RosterPlayer[];
 }
 
-export interface NameGeo { cy: number; span: number; arc: number; size: number }
-export interface NumberGeo { cy: number; size: number }
+export interface NameGeo {
+  cy: number; span: number; arc: number; size: number;
+  /** Letter-spacing override in em, as a plain number — falls back to the competition's tracking when unset */
+  tracking?: number;
+}
+export interface NumberGeo {
+  cy: number;
+  size: number;
+  /** Gap between digits as a fraction of image width — only used in 'svg_glyphs' number mode */
+  gap?: number;
+}
 export interface PrintImages { back: string; front: string }
 export interface SleeveGeo {
   src: string;
@@ -66,22 +83,60 @@ export interface SleeveGeo {
   /** Natural pixel dimensions of the patch image (for correct aspect ratio) */
   patchW: number;
   patchH: number;
+  /** Rotation in degrees, applied around the patch's own center */
+  rotation?: number;
 }
 
+export interface GlyphImage {
+  url: string;
+  /** Natural pixel dimensions — lets each digit keep its own true aspect ratio when laid out side by side */
+  w: number;
+  h: number;
+}
+
+export interface KitColors {
+  nameFill: string;
+  nameStroke: string;
+  numberFill: string;
+  numberStroke: string;
+}
+
+// Keyed by printSlot(competition, kitType) — the bare competition id for the
+// home kit, `${competition}__${kitType}` for away/third/fourth, so each kit
+// type carries fully independent calibration (it's a different physical shirt).
 export interface PrintEntry {
   font?: string | Partial<Record<CompetitionId, string>>;
+  /** Shared fallback geometry (used when no per-slot entry exists) */
   name?: NameGeo;
   number?: NumberGeo;
-  images?: Partial<Record<CompetitionId, PrintImages>>;
-  patchImages?: Partial<Record<CompetitionId, string>>;
-  sleeveImages?: Partial<Record<CompetitionId, SleeveGeo>>;
+  /** Per-slot geometry overrides */
+  nameGeo?: Partial<Record<string, NameGeo>>;
+  numberGeo?: Partial<Record<string, NumberGeo>>;
+  images?: Partial<Record<string, PrintImages>>;
+  patchImages?: Partial<Record<string, string>>;
+  sleeveImages?: Partial<Record<string, SleeveGeo>>;
+  /** Per-slot lettering color overrides from the admin calibrator */
+  colors?: Partial<Record<string, KitColors>>;
+  /** Per-slot custom font URLs uploaded via admin */
+  fontUrls?: Partial<Record<string, { name?: string; number?: string }>>;
+  /** Per-slot number rendering mode */
+  numberMode?: Partial<Record<string, "font" | "svg_glyphs">>;
+  /** Per-slot digit glyphs (digit string "0"–"9" → image + natural size) */
+  glyphs?: Partial<Record<string, Record<string, GlyphImage>>>;
+  /** Extra gallery photos uploaded via admin, keyed by kit type (shared across that kit's competitions) */
+  gallery?: Partial<Record<KitTypeId, string[]>>;
 }
 
 export interface ResolvedPrint {
   src: string;
   name: NameGeo;
   number: NumberGeo;
+  fontNameUrl?: string;
+  fontNumberUrl?: string;
+  numberMode?: "font" | "svg_glyphs";
+  glyphs?: Record<string, GlyphImage>;
 }
+
 
 /* ---- competitions ---- */
 export const COMPETITIONS: Record<CompetitionId, Competition> = {
@@ -90,6 +145,8 @@ export const COMPETITIONS: Record<CompetitionId, Competition> = {
   seriea:     { id: "seriea",     label: "Serie A",                kind: "league",      patch: "seriea",     fontFamily: "var(--font-oswald), sans-serif",  nameWeight: 600, numberWeight: 700, tracking: "0.03em", uppercase: true },
   bundesliga: { id: "bundesliga", label: "Bundesliga",             kind: "league",      patch: "bundesliga", fontFamily: "var(--font-teko), sans-serif",    nameWeight: 600, numberWeight: 700, tracking: "0.04em", uppercase: true },
   ucl:        { id: "ucl",        label: "UEFA Champions League",  kind: "continental", patch: "ucl",        fontFamily: "var(--font-rajdhani), sans-serif",nameWeight: 600, numberWeight: 700, tracking: "0.10em", uppercase: true },
+  ligue1:     { id: "ligue1",     label: "Ligue 1",                kind: "league",      patch: "ligue1",     fontFamily: "var(--font-archivo), sans-serif", nameWeight: 700, numberWeight: 800, tracking: "0.02em", uppercase: true },
+  worldcup:   { id: "worldcup",   label: "FIFA World Cup 2026",    kind: "international", patch: "worldcup", fontFamily: "var(--font-rajdhani), sans-serif",nameWeight: 700, numberWeight: 800, tracking: "0.08em", uppercase: true },
 };
 
 export const PATCHES: Record<CompetitionId, { label: string; sleeve: string }> = {
@@ -98,6 +155,8 @@ export const PATCHES: Record<CompetitionId, { label: string; sleeve: string }> =
   seriea:     { label: "Serie A", sleeve: "Right sleeve" },
   bundesliga: { label: "Bundesliga", sleeve: "Right sleeve" },
   ucl:        { label: "Champions League", sleeve: "Right sleeve" },
+  ligue1:     { label: "Ligue 1", sleeve: "Right sleeve" },
+  worldcup:   { label: "FIFA World Cup 2026", sleeve: "Right sleeve" },
 };
 
 /* ---- teams ---- */
@@ -137,7 +196,7 @@ export const TEAMS: Record<TeamId, Team> = {
 /* ---- print: photos + overlay geometry ---- */
 export const PRINT_DEFAULT = {
   name: { cy: 0.34, span: 0.42, arc: 0.045, size: 0.052 } as NameGeo,
-  number: { cy: 0.52, size: 0.26 } as NumberGeo,
+  number: { cy: 0.52, size: 0.26, gap: 0.008 } as NumberGeo,
 };
 
 export const PRINT: Partial<Record<TeamId, PrintEntry>> = {
@@ -178,25 +237,73 @@ export function competitionsForTeam(teamId: TeamId): CompetitionId[] {
   return [TEAMS[teamId].league, "ucl"];
 }
 
-export function printFor(teamId: TeamId, competition: CompetitionId, view: View, printMap?: Partial<Record<string, PrintEntry>>): ResolvedPrint | null {
+export function printFor(
+  teamId: TeamId, competition: CompetitionId, view: View,
+  printMap?: Partial<Record<string, PrintEntry>>, kitType: KitTypeId = "home",
+): ResolvedPrint | null {
   const p = (printMap ?? PRINT)[teamId];
-  const src = p?.images?.[competition]?.[view];
+  const slot = printSlot(competition, kitType);
+  const src = p?.images?.[slot]?.[view];
   if (!src) return null;
+  const fontUrls = p?.fontUrls?.[slot];
   return {
     src,
-    name: { ...PRINT_DEFAULT.name, ...(p?.name ?? {}) },
-    number: { ...PRINT_DEFAULT.number, ...(p?.number ?? {}) },
+    name:   { ...PRINT_DEFAULT.name,   ...(p?.name   ?? {}), ...(p?.nameGeo?.[slot]   ?? {}) },
+    number: { ...PRINT_DEFAULT.number, ...(p?.number  ?? {}), ...(p?.numberGeo?.[slot] ?? {}) },
+    fontNameUrl:   fontUrls?.name,
+    fontNumberUrl: fontUrls?.number,
+    numberMode: p?.numberMode?.[slot],
+    // Digit artwork is now per kit type — keyed by the same printSlot as
+    // geometry, images and colours.
+    glyphs:     p?.glyphs?.[slot],
   };
 }
 
-/** Real patch image for a team+competition, or null if none uploaded. */
-export function patchImageFor(teamId: TeamId, competition: CompetitionId, printMap?: Partial<Record<string, PrintEntry>>): string | null {
-  return (printMap ?? PRINT)[teamId]?.patchImages?.[competition] ?? null;
+/** Real patch image for a team+competition+kit, or null if none uploaded. */
+export function patchImageFor(
+  teamId: TeamId, competition: CompetitionId,
+  printMap?: Partial<Record<string, PrintEntry>>, kitType: KitTypeId = "home",
+): string | null {
+  return (printMap ?? PRINT)[teamId]?.patchImages?.[printSlot(competition, kitType)] ?? null;
 }
 
-/** Sleeve patch geometry for a team+competition, or null if none uploaded. */
-export function sleeveFor(teamId: TeamId, competition: CompetitionId, printMap?: Partial<Record<string, PrintEntry>>): SleeveGeo | null {
-  return (printMap ?? PRINT)[teamId]?.sleeveImages?.[competition] ?? null;
+/** Sleeve patch geometry for a team+competition+kit, or null if none uploaded. */
+export function sleeveFor(
+  teamId: TeamId, competition: CompetitionId,
+  printMap?: Partial<Record<string, PrintEntry>>, kitType: KitTypeId = "home",
+): SleeveGeo | null {
+  return (printMap ?? PRINT)[teamId]?.sleeveImages?.[printSlot(competition, kitType)] ?? null;
+}
+
+/**
+ * Live-calibrated back/front photo for a team+kitType, if the admin has
+ * uploaded one — checked across any competition, since a kit's photo is the
+ * same physical shirt shared across all of that kit type's competitions.
+ * The static commerce catalog (lib/products.ts) ships a photo at build time;
+ * this lets an admin upload override it on the storefront without a redeploy.
+ */
+export function livePhotosFor(
+  teamSlug: string, kitType: KitTypeId, printMap?: Partial<Record<string, PrintEntry>>,
+): { front?: string; back?: string } | null {
+  const map = (printMap ?? PRINT) as Partial<Record<string, PrintEntry>>;
+  const images = map[teamSlug]?.images;
+  if (!images) return null;
+  const suffix = kitType === "home" ? null : `__${kitType}`;
+  for (const [slot, img] of Object.entries(images)) {
+    const matches = suffix ? slot.endsWith(suffix) : !slot.includes("__");
+    if (matches && img && (img.front || img.back)) {
+      return { front: img.front || undefined, back: img.back || undefined };
+    }
+  }
+  return null;
+}
+
+/** Extra gallery photos an admin has uploaded for this team+kitType, if any. */
+export function liveGalleryFor(
+  teamSlug: string, kitType: KitTypeId, printMap?: Partial<Record<string, PrintEntry>>,
+): string[] {
+  const map = (printMap ?? PRINT) as Partial<Record<string, PrintEntry>>;
+  return map[teamSlug]?.gallery?.[kitType] ?? [];
 }
 
 /** Official-font override per team (string or per-competition), else the competition stand-in. */

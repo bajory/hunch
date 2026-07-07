@@ -1,7 +1,6 @@
 import {
-  Cormorant,
-  Montserrat,
-  Jost,
+  Libre_Caslon_Display,
+  Manrope,
   Saira,
   Archivo,
   Oswald,
@@ -10,21 +9,16 @@ import {
 } from "next/font/google";
 import localFont from "next/font/local";
 
-/* UI / display */
-export const cormorant = Cormorant({
+/* Brand display + UI — Gallery Porcelain identity */
+export const caslon = Libre_Caslon_Display({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-cormorant",
+  weight: ["400"],
+  variable: "--font-caslon",
 });
-export const montserrat = Montserrat({
+export const manrope = Manrope({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-montserrat",
-});
-export const jost = Jost({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  variable: "--font-jost",
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-manrope",
 });
 
 /* competition lettering stand-ins */
@@ -48,5 +42,5 @@ export const fcbLiga = localFont({
 
 /* all font CSS-variable classNames, applied once on <body> */
 export const fontVariables = [
-  cormorant, montserrat, jost, saira, archivo, oswald, teko, rajdhani, fcbUcl, fcbLiga,
+  caslon, manrope, saira, archivo, oswald, teko, rajdhani, fcbUcl, fcbLiga,
 ].map((f) => f.variable).join(" ");

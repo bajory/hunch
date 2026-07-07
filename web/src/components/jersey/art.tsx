@@ -1,6 +1,6 @@
-/* Jersey artwork: sleeve patches, the SVG silhouette fallback, and the
-   name/number overlay used on real photos. Pure (no hooks) → shareable. */
-import type { CompetitionId, Competition, Team, View, SleeveGeo } from "@/lib/catalog";
+/* Jersey print artwork: the calibrated name/number/patch overlays drawn on
+   real shirt photography. Pure (no hooks) → shared by storefront + admin. */
+import type { SleeveGeo, NumberGeo, GlyphImage } from "@/lib/catalog";
 
 /* pick black/white text that reads on a given kit colour */
 export function readable(hex: string): string {
@@ -9,181 +9,100 @@ export function readable(hex: string): string {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? "#1A1A1A" : "#FFFFFF";
 }
 
-/* ---- patch primitives ---- */
-function star(cx: number, cy: number, R: number, fill: string, key?: string | number) {
-  let pts = "";
-  for (let i = 0; i < 5; i++) {
-    const ao = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-    const ai = ao + Math.PI / 5;
-    pts += `${cx + R * Math.cos(ao)},${cy + R * Math.sin(ao)} `;
-    pts += `${cx + R * 0.42 * Math.cos(ai)},${cy + R * 0.42 * Math.sin(ai)} `;
-  }
-  return <polygon key={key} points={pts} fill={fill} />;
-}
+/**
+ * Number rendered from per-digit SVG glyphs instead of a font.
+ * All digits share the same rendered height, but each keeps its OWN natural
+ * aspect ratio (a "1" is narrower than a "0") — using one assumed ratio for
+ * every digit is what used to throw multi-digit numbers off-center.
+ *
+ * Fill tinting uses a three-step SVG filter: (1) desaturate the glyph to strip
+ * any baked-in hue (gold, amber, etc.), (2) boost brightness 2× so body pixels
+ * (luminance ≥ 0.5) clamp to white, (3) multiply with the admin's target colour.
+ * White body → exact target colour. Dark internal artwork (e.g. a club crest
+ * baked into the numeral) → a proportionally darker shade, preserving the detail.
+ * The result is clipped to the glyph's alpha silhouette.
+ * Stroke is a flat colour drawn from a dilated copy of the alpha silhouette.
+ */
+export function GlyphOverlay({
+  W, H, number, glyphs, numberGeo, glyphAspect = 0.65, fill, stroke,
+}: {
+  W: number; H: number;
+  number: string;
+  glyphs: Record<string, GlyphImage>;
+  numberGeo: NumberGeo;
+  /** Fallback ratio for glyphs uploaded before their natural size was recorded */
+  glyphAspect?: number;
+  fill?: string;
+  stroke?: string;
+}) {
+  const digits = number.replace(/\D/g, "").split("").filter(Boolean);
+  if (!digits.length) return null;
+  const h = numberGeo.size * W;
+  const gap = (numberGeo.gap ?? 0.008) * W;
+  const strokeOn = !!stroke && stroke !== "none";
+  const strokeW = Math.max(1, h * 0.028);
+  const pad = strokeOn ? strokeW * 3 : h * 0.02;
 
-function Starball({ cx, cy, r }: { cx: number; cy: number; r: number }) {
-  const ring: [number, number][] = [[0, -1], [0.85, -0.5], [0.85, 0.5], [0, 1], [-0.85, 0.5], [-0.85, -0.5]];
+  const widths = digits.map((d) => {
+    const g = glyphs[d];
+    const ratio = g && g.h > 0 ? g.w / g.h : glyphAspect;
+    return h * ratio;
+  });
+  const totalW = widths.reduce((sum, w) => sum + w, 0) + (digits.length - 1) * gap;
+  const startY = numberGeo.cy * H - h / 2;
+  const startX = (W - totalW) / 2;
+  // Prefix sum of each digit's own width + gap, so layout stays a pure derivation (no mutation during render)
+  const offsets = widths.reduce<number[]>((acc, w, i) => {
+    acc.push(i === 0 ? startX : acc[i - 1] + widths[i - 1] + gap);
+    return acc;
+  }, []);
+
   return (
     <>
-      <circle cx={cx} cy={cy} r={r} fill="#fff" />
-      {star(cx, cy, r * 0.3, "#0A1A4A", "c")}
-      {ring.map(([dx, dy], i) => star(cx + dx * r * 0.66, cy + dy * r * 0.66, r * 0.22, "#0A1A4A", i))}
+      {digits.map((d, i) => {
+        const glyph = glyphs[d];
+        if (!glyph) return null;
+        const x = offsets[i], w = widths[i];
+        const id = `gtint-${d}-${i}-${Math.round(numberGeo.cy * 1000)}`;
+        const tintId = `${id}-tint`;
+        const strokeId = `${id}-stroke`;
+        return (
+          <g key={i}>
+            <defs>
+              {/* Desaturate → boost → multiply: strip the glyph's baked-in hue,
+                  push body brightness to white (2× clamp), then multiply with
+                  the target colour. Body → exact target; dark detail → darker. */}
+              {fill && (
+                <filter id={tintId} x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+                  <feColorMatrix type="saturate" values="0" in="SourceGraphic" result="gray" />
+                  <feComponentTransfer in="gray" result="norm">
+                    <feFuncR type="linear" slope="2" intercept="0" />
+                    <feFuncG type="linear" slope="2" intercept="0" />
+                    <feFuncB type="linear" slope="2" intercept="0" />
+                  </feComponentTransfer>
+                  <feFlood floodColor={fill} result="fillColor" />
+                  <feBlend in="fillColor" in2="norm" mode="multiply" result="tinted" />
+                  <feComposite in="tinted" in2="SourceAlpha" operator="in" />
+                </filter>
+              )}
+              {strokeOn && (
+                <filter id={strokeId} x="-50%" y="-50%" width="200%" height="200%" colorInterpolationFilters="sRGB">
+                  <feMorphology in="SourceAlpha" operator="dilate" radius={strokeW} result="dilated" />
+                  <feFlood floodColor={stroke} result="strokeColor" />
+                  <feComposite in="strokeColor" in2="dilated" operator="in" />
+                </filter>
+              )}
+            </defs>
+            {strokeOn && (
+              <image href={glyph.url} x={x - pad} y={startY - pad} width={w + pad * 2} height={h + pad * 2}
+                preserveAspectRatio="xMidYMid meet" filter={`url(#${strokeId})`} />
+            )}
+            <image href={glyph.url} x={x} y={startY} width={w} height={h}
+              preserveAspectRatio="xMidYMid meet" filter={fill ? `url(#${tintId})` : undefined} />
+          </g>
+        );
+      })}
     </>
-  );
-}
-
-/* inner content for a 40x40 patch box */
-export function PatchInner({ competition }: { competition: CompetitionId }) {
-  switch (competition) {
-    case "ucl":
-      return (
-        <g>
-          <circle cx={20} cy={20} r={18} fill="#0A1A4A" />
-          <circle cx={20} cy={20} r={18} fill="none" stroke="#C9A24B" strokeWidth={1} />
-          <Starball cx={20} cy={20} r={13} />
-        </g>
-      );
-    case "laliga":
-      return (
-        <g>
-          <rect x={3} y={9} width={34} height={22} rx={4} fill="#0B0B0B" />
-          <rect x={3} y={9} width={34} height={22} rx={4} fill="none" stroke="#E4002B" strokeWidth={1.4} />
-          <circle cx={13} cy={20} r={4.2} fill="#E4002B" />
-          <text x={22} y={24} fontFamily="var(--font-saira), sans-serif" fontWeight={800} fontSize={9} fill="#fff" letterSpacing={0.5}>LIGA</text>
-        </g>
-      );
-    case "premier":
-      return (
-        <g>
-          <circle cx={20} cy={20} r={18} fill="#3D195B" />
-          <circle cx={20} cy={20} r={18} fill="none" stroke="#fff" strokeWidth={1} />
-          <g transform="translate(13,12)" fill="#fff">
-            <path d="M3 11 C3 6 6 3 9 4 C8 6 10 6 11 5 C12 7 11 9 9 10 C11 10 12 12 11 13 C9 12 7 13 6 12 C5 13 3 12 3 11 Z" />
-          </g>
-        </g>
-      );
-    case "seriea":
-      return (
-        <g>
-          <rect x={4} y={8} width={32} height={24} rx={6} fill="#003366" />
-          <path d="M12 26 L20 12 L28 26 Z" fill="none" stroke="#fff" strokeWidth={2} />
-          <circle cx={20} cy={22} r={2.4} fill="#E4002B" />
-        </g>
-      );
-    case "bundesliga":
-      return (
-        <g>
-          <rect x={4} y={10} width={32} height={20} rx={10} fill="#D20515" />
-          <text x={20} y={24} textAnchor="middle" fontFamily="var(--font-teko), sans-serif" fontWeight={700} fontSize={12} fill="#fff" letterSpacing={0.5}>BL</text>
-        </g>
-      );
-    default:
-      return null;
-  }
-}
-
-/* small standalone patch icon (control panel preview) */
-export function PatchIcon({ competition, imageUrl }: { competition: CompetitionId; imageUrl?: string | null }) {
-  if (imageUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={imageUrl} alt={competition + " patch"} className="patch-img" />;
-  }
-  return (
-    <svg viewBox="0 0 40 40">
-      <PatchInner competition={competition} />
-    </svg>
-  );
-}
-
-const JERSEY_PATH =
-  "M200 36 C182 36 168 41 158 49 L104 74 C82 84 70 104 60 132 L100 162 " +
-  "C108 156 117 152 126 150 L126 162 C122 244 120 350 128 430 " +
-  "C160 444 240 444 272 430 C280 350 278 244 274 162 L274 150 " +
-  "C283 152 292 156 300 162 L340 132 C330 104 318 84 296 74 L242 49 " +
-  "C232 41 218 36 200 36 Z";
-
-interface SilhouetteProps {
-  team: Team;
-  competition: Competition;
-  name: string;
-  number: string;
-  view: View;
-  fontFamily: string;
-}
-
-/* SVG fallback jersey (used when a club/competition has no photo) */
-export function JerseySilhouette({ team, competition, name, number, view, fontFamily }: SilhouetteProps) {
-  const k = team.kit;
-  const isBack = view === "back";
-  const isUCL = competition.kind === "continental";
-  const lettering = isUCL ? k.uclFill : k.leagueFill;
-  const letterStroke = !isUCL && k.leagueStroke && k.leagueStroke !== "none" ? k.leagueStroke : "none";
-  const L = name.length;
-  const nameSize = L <= 7 ? 32 : L <= 9 ? 27 : L <= 11 ? 23 : L <= 13 ? 20 : 18;
-
-  const patchX = isBack ? 82 : 318;
-  const patchY = 132;
-
-  let stripes: React.ReactNode = null;
-  if (k.stripes) {
-    const [a, b] = k.stripes.colors, w = k.stripes.width;
-    const rects: React.ReactNode[] = [];
-    let x = 40, i = 0;
-    while (x < 360) { rects.push(<rect key={i} x={x} y={0} width={w} height={470} fill={i % 2 ? b : a} />); x += w; i++; }
-    stripes = <g clipPath="url(#bodyclip)">{rects}</g>;
-  }
-
-  return (
-    <svg viewBox="0 0 400 470" xmlns="http://www.w3.org/2000/svg" role="img"
-      aria-label={`${team.name} jersey, ${isBack ? "back" : "front"} view`}>
-      <defs>
-        <clipPath id="bodyclip"><path d={JERSEY_PATH} /></clipPath>
-        <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity={0.1} />
-          <stop offset="0.5" stopColor="#fff" stopOpacity={0} />
-          <stop offset="1" stopColor="#000" stopOpacity={0.18} />
-        </linearGradient>
-        <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="14" stdDeviation="16" floodColor="#000" floodOpacity={0.55} />
-        </filter>
-      </defs>
-
-      <g filter="url(#soft)">
-        <path d={JERSEY_PATH} fill={k.body} />
-        {stripes}
-        <path d={JERSEY_PATH} fill="url(#sheen)" />
-        <path d="M158 49 C176 70 224 70 242 49 C232 60 224 66 200 66 C176 66 168 60 158 49 Z" fill={k.collar} />
-        <path d="M126 150 C122 244 120 350 128 430" fill="none" stroke="#000" strokeOpacity={0.12} strokeWidth={2} />
-        <path d="M274 150 C278 244 280 350 272 430" fill="none" stroke="#000" strokeOpacity={0.12} strokeWidth={2} />
-
-        {isBack ? (
-          <g>
-            <path id="namearc" d="M96 200 Q200 162 304 200" fill="none" />
-            <text textAnchor="middle" fontFamily={fontFamily} fontWeight={competition.nameWeight}
-              letterSpacing={competition.tracking} fill={lettering} stroke={letterStroke}
-              strokeWidth={letterStroke === "none" ? 0 : 1} style={{ fontSize: `${nameSize}px` }}>
-              <textPath href="#namearc" startOffset="50%">{name}</textPath>
-            </text>
-            <text x={200} y={350} textAnchor="middle" fontFamily={fontFamily} fontWeight={competition.numberWeight}
-              letterSpacing="0" fill={lettering} stroke={letterStroke}
-              strokeWidth={letterStroke === "none" ? 0 : 0.8} style={{ fontSize: "150px" }}>{number}</text>
-          </g>
-        ) : (
-          <g>
-            <g transform="translate(150,150)">
-              <rect x={0} y={0} width={34} height={40} rx={3} fill={k.crestBg} />
-              <text x={17} y={27} textAnchor="middle" fontFamily="var(--font-cormorant), serif" fontWeight={700} fontSize={17} fill={k.crestFg}>{k.crestText}</text>
-            </g>
-            <text x={200} y={250} textAnchor="middle" fontFamily="var(--font-montserrat), sans-serif" fontWeight={700} fontSize={15} letterSpacing={2} fill={readable(k.body)} opacity={0.92}>{k.sponsor}</text>
-            <text x={248} y={178} textAnchor="middle" fontFamily="var(--font-cormorant), serif" fontWeight={700} fontSize={13} fill={readable(k.body)} opacity={0.55}>HUNCH</text>
-          </g>
-        )}
-
-        <g transform={`translate(${patchX - 20},${patchY - 20}) scale(1.05)`}>
-          <PatchInner competition={competition.patch} />
-        </g>
-      </g>
-    </svg>
   );
 }
 
@@ -202,30 +121,39 @@ export function SleeveOverlay({
   const py = sleeve.y * H;
   // Same x for front and back — product photos don't flip left/right between views
   const px = sleeve.x * W;
+  const rotation = sleeve.rotation ?? 0;
+  const cx = px + pw / 2, cy = py + ph / 2;
   return (
-    <image href={sleeve.src} x={px} y={py} width={pw} height={ph} preserveAspectRatio="xMidYMid meet" />
+    <image href={sleeve.src} x={px} y={py} width={pw} height={ph} preserveAspectRatio="xMidYMid meet"
+      transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined} />
   );
 }
 
 /* name + number overlay drawn on a real photo (back view) */
 export function PhotoOverlay({
-  W, H, name, number, fontFamily, nameWeight, numberWeight, tracking, fill, stroke,
+  W, H, name, number, fontFamily, numFontFamily, nameWeight, numberWeight, tracking,
+  fill, stroke, numFill, numStroke,
   nameGeo, numberGeo, patchImage, patchGeo,
 }: {
   W: number; H: number; name: string; number: string;
-  fontFamily: string; nameWeight: number; numberWeight: number; tracking: string;
+  fontFamily: string; numFontFamily?: string;
+  nameWeight: number; numberWeight: number; tracking: string;
   fill: string; stroke: string;
+  numFill?: string; numStroke?: string;
   nameGeo: { cy: number; span: number; arc: number; size: number };
   numberGeo: { cy: number; size: number };
   patchImage?: string | null;
-  patchGeo?: { cx: number; cy: number; size: number }; // fractions of W/H
+  patchGeo?: { cx: number; cy: number; size: number };
 }) {
   const cx = W / 2;
   const span = nameGeo.span * W, midY = nameGeo.cy * H, rise = nameGeo.arc * H;
   const arc = `M ${cx - span / 2} ${midY} Q ${cx} ${midY - rise} ${cx + span / 2} ${midY}`;
   const nameSize = nameGeo.size * W, numSize = numberGeo.size * W, numY = numberGeo.cy * H;
+  const resolvedNumFont   = numFontFamily ?? fontFamily;
+  const resolvedNumFill   = numFill   ?? fill;
+  const resolvedNumStroke = numStroke ?? stroke;
   const ns = stroke === "none" ? 0 : Math.max(1, nameSize * 0.04);
-  const xs = stroke === "none" ? 0 : Math.max(1, numSize * 0.012);
+  const xs = resolvedNumStroke === "none" ? 0 : Math.max(1, numSize * 0.012);
   const pg = patchGeo ?? { cx: 0.24, cy: 0.22, size: 0.14 };
   const pSize = pg.size * W;
   const pX = pg.cx * W - pSize / 2;
@@ -237,9 +165,16 @@ export function PhotoOverlay({
         fill={fill} stroke={stroke} strokeWidth={ns} paintOrder="stroke" style={{ fontSize: `${nameSize}px` }}>
         <textPath href="#ov-arc" startOffset="50%">{name}</textPath>
       </text>
-      <text x={cx} y={numY} textAnchor="middle" dominantBaseline="central" fontFamily={fontFamily}
-        fontWeight={numberWeight} letterSpacing="0" fill={fill} stroke={stroke} strokeWidth={xs}
-        paintOrder="stroke" style={{ fontSize: `${numSize}px` }}>{number}</text>
+      {/* Use fill="currentColor" so COLR font palette layers render correctly.
+          The CSS color property sets currentColor without overriding fixed-color COLR layers. */}
+      <text x={cx} y={numY} textAnchor="middle" dominantBaseline="central"
+        fontFamily={resolvedNumFont} fontWeight={numberWeight} letterSpacing="0"
+        fill="currentColor"
+        stroke={resolvedNumStroke === "none" ? "none" : resolvedNumStroke}
+        strokeWidth={xs} paintOrder="stroke"
+        style={{ fontSize: `${numSize}px`, color: resolvedNumFill }}>
+        {number}
+      </text>
       {patchImage && (
         <image href={patchImage} x={pX} y={pY} width={pSize} height={pSize} preserveAspectRatio="xMidYMid meet" />
       )}

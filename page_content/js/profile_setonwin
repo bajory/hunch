@@ -1,0 +1,11 @@
+
+      (function() {
+        try{
+            const data = {};
+            window.digitalProfile = window.digitalProfile || {};
+            window.digitalProfile.fetchedData = data;
+        }catch(e){
+          console.warn(e)
+        }
+      })();
+    
