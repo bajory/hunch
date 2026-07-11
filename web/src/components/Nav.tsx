@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { Moon, Sun, ShoppingBag, Menu as MenuIcon, X } from "lucide-react";
 import { useCart } from "./CartProvider";
+import { Logo } from "./Logo";
 
 const LINKS = [
   { href: "/shop", label: "Shop" },
   { href: "/shop?kind=club", label: "Clubs" },
-  { href: "/shop?kind=national", label: "National" },
+  { href: "/shop?kind=national", label: "National Teams" },
   { href: "/house", label: "The House" },
 ];
 
 export function Nav() {
   const [solid, setSolid] = useState(false);
   const [dark, setDark] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const { count, openDrawer } = useCart();
 
@@ -29,6 +32,18 @@ export function Nav() {
     setDark(document.documentElement.dataset.theme === "dark");
   }, []);
 
+  // Close the menu on route change, lock page scroll while it's open, and
+  // let Escape close it — the same conventions the cart drawer would want.
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
+  }, [menuOpen]);
+
   function toggleTheme() {
     const next = !dark;
     setDark(next);
@@ -38,41 +53,57 @@ export function Nav() {
   }
 
   return (
-    <header className={`nav${solid ? " is-solid" : ""}`}>
-      <nav className="nav__links" aria-label="Primary">
-        {LINKS.map((l) => (
-          <Link
-            key={l.label}
-            href={l.href}
-            className={`nav__link${pathname === l.href && !l.href.includes("?") ? " is-active" : ""}`}
-          >
-            {l.label}
-          </Link>
-        ))}
-      </nav>
+    <>
+      <header className={`nav${solid ? " is-solid" : ""}`}>
+        <a href="/house" className="nav__utility">
+          <span className="nav__utility-plus">+</span> Contact Us
+        </a>
 
-      <Link href="/" className="nav__brand" aria-label="HUNCH home">HUNCH</Link>
+        <Link href="/" className="nav__brand" aria-label="HUNCH home">
+          <Logo className="nav__logo" />
+        </Link>
 
-      <div className="nav__side">
-        <button className="nav__theme" onClick={toggleTheme}
-          aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-          title={dark ? "Light mode" : "Dark mode"}>
-          {dark ? (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <circle cx="12" cy="12" r="4.2" />
-              <path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5 5l1.8 1.8M17.2 17.2 19 19M19 5l-1.8 1.8M6.8 17.2 5 19" />
-            </svg>
-          ) : (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z" />
-            </svg>
-          )}
+        <div className="nav__side">
+          <button className="nav__icon" onClick={toggleTheme}
+            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+            title={dark ? "Light mode" : "Dark mode"}>
+            {dark ? <Moon size={19} strokeWidth={1.6} /> : <Sun size={19} strokeWidth={1.6} />}
+          </button>
+
+          <button className="nav__icon nav__icon--bag" onClick={openDrawer} aria-label={`Open bag, ${count} items`}>
+            <ShoppingBag size={19} strokeWidth={1.6} />
+            {count > 0 && <span className="nav__bag-count">{count}</span>}
+          </button>
+
+          <button className="nav__menubtn" onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-expanded={menuOpen}>
+            <MenuIcon size={19} strokeWidth={1.7} />
+            <span>Menu</span>
+          </button>
+        </div>
+      </header>
+
+      <div className={`menuveil${menuOpen ? " is-open" : ""}`} onClick={() => setMenuOpen(false)} aria-hidden="true" />
+      <aside className={`menu${menuOpen ? " is-open" : ""}`} role="dialog" aria-modal="true" aria-label="Menu">
+        <button className="menu__close" onClick={() => setMenuOpen(false)} aria-label="Close menu">
+          <X size={16} strokeWidth={1.8} />
         </button>
-        <button className="nav__bag" onClick={openDrawer} aria-label={`Open bag, ${count} items`}>
-          Bag
-          <span className="nav__bag-count">{count}</span>
-        </button>
-      </div>
-    </header>
+
+        <nav className="menu__links" aria-label="Primary">
+          {LINKS.map((l) => (
+            <Link
+              key={l.label}
+              href={l.href}
+              className={`menu__link${pathname === l.href && !l.href.includes("?") ? " is-active" : ""}`}
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="menu__foot">
+          <a href="/house" className="menu__foot-link">Contact Us</a>
+        </div>
+      </aside>
+    </>
   );
 }

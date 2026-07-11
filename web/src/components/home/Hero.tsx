@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { gsap, SplitText, useGSAP, MOTION_OK, prefersReducedMotion } from "@/lib/gsap";
 import { MagneticButton } from "@/components/motion/MagneticButton";
 import type { HeroContent } from "@/lib/site-content";
@@ -26,7 +27,7 @@ export function Hero({ content }: { content: HeroContent }) {
     if (!root) return;
     const media = root.querySelector(".hero__media");
     const title = root.querySelector<HTMLElement>(".hero__title");
-    const below = root.querySelectorAll(".hero__kicker, .hero__row, .hero__hint");
+    const below = root.querySelectorAll(".hero__kicker, .hero__ctas, .hero__arrows");
 
     const mm = gsap.matchMedia();
     mm.add(MOTION_OK, () => {
@@ -76,25 +77,33 @@ export function Hero({ content }: { content: HeroContent }) {
           <span className="microlabel microlabel--brass">{slide.kicker}</span>
         </div>
         <h1 className="hero__title" key={`title-${active}`}>{slide.title}</h1>
-        <div className="hero__row">
-          <p className="hero__sub">{slide.sub}</p>
-          <div className="hero__ctas">
-            <MagneticButton><Link href="/shop" className="btn btn--pill" data-cursor="Shop">Shop the collection</Link></MagneticButton>
-            <MagneticButton><Link href="/house" className="btn btn--pill btn--line">The House</Link></MagneticButton>
-          </div>
+        <div className="hero__ctas">
+          <MagneticButton><Link href="/shop" className="btn btn--pill" data-cursor="Shop">Shop the collection</Link></MagneticButton>
+          <MagneticButton><Link href="/house" className="btn btn--pill btn--line">The House</Link></MagneticButton>
         </div>
       </div>
       {slides.length > 1 && (
-        <div className="hero__dots" role="tablist" aria-label="Hero slides">
-          {slides.map((_, i) => (
-            <button key={i} role="tab" aria-selected={i === active}
-              className={`hero__dot${i === active ? " is-on" : ""}`}
-              aria-label={`Slide ${i + 1}`}
-              onClick={() => setActive(i)} />
-          ))}
-        </div>
+        <>
+          <div className="hero__dots" role="tablist" aria-label="Hero slides">
+            {slides.map((_, i) => (
+              <button key={i} role="tab" aria-selected={i === active}
+                className={`hero__dot${i === active ? " is-on" : ""}`}
+                aria-label={`Slide ${i + 1}`}
+                onClick={() => setActive(i)} />
+            ))}
+          </div>
+          <div className="hero__arrows">
+            <button type="button" className="hero__arrow" aria-label="Previous slide"
+              onClick={() => setActive((i) => (i - 1 + slides.length) % slides.length)}>
+              <ChevronLeft size={18} strokeWidth={1.5} />
+            </button>
+            <button type="button" className="hero__arrow" aria-label="Next slide"
+              onClick={() => setActive((i) => (i + 1) % slides.length)}>
+              <ChevronRight size={18} strokeWidth={1.5} />
+            </button>
+          </div>
+        </>
       )}
-      <span className="hero__hint">Scroll</span>
     </section>
   );
 }

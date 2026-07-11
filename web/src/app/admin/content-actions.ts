@@ -54,3 +54,28 @@ export async function uploadSiteVideo(formData: FormData): Promise<{ ok: boolean
   const { data } = admin.storage.from("jersey-photos").getPublicUrl(path);
   return { ok: true, url: `${data.publicUrl}?v=${Date.now()}` };
 }
+
+const FONT_MIME: Record<string, string> = {
+  woff2: "font/woff2", woff: "font/woff", ttf: "font/ttf", otf: "font/otf",
+};
+
+/** Uploads a custom brand font file (woff2/woff/ttf/otf) for the "serif" or
+    "sans" slot — the caller folds the returned URL into typography.customSerifUrl
+    / customSansUrl. Re-uploading the same slot replaces the file in place. */
+export async function uploadSiteFont(formData: FormData): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const admin = createAdminClient();
+  if (!admin) return noAdmin();
+  const slot = formData.get("slot") as string; // "serif" | "sans"
+  const file = formData.get("file") as File;
+  const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+  if (!(ext in FONT_MIME)) return { ok: false, error: "Use a .woff2, .woff, .ttf, or .otf file" };
+  const path = `site/fonts/${slot}.${ext}`;
+  const buf = await file.arrayBuffer();
+  const { error: upErr } = await admin.storage.from("jersey-photos").upload(path, buf, {
+    contentType: FONT_MIME[ext],
+    upsert: true,
+  });
+  if (upErr) return { ok: false, error: upErr.message };
+  const { data } = admin.storage.from("jersey-photos").getPublicUrl(path);
+  return { ok: true, url: `${data.publicUrl}?v=${Date.now()}` };
+}

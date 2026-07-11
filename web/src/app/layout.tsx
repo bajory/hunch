@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { fontVariables } from "@/lib/fonts";
+import { fontVariables, resolveTypographyStyle } from "@/lib/fonts";
+import { getTypographyFresh } from "@/lib/site-content";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,10 +13,17 @@ export const metadata: Metadata = {
 // "dark" sets an attribute). Inline + blocking on purpose — avoids a flash.
 const themeInit = `try{if(localStorage.getItem("hunch-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}`;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Uncached, single-row read — the admin's font pick (/admin/content →
+  // Typography) applies on the very next request, site-wide (storefront and
+  // admin both read the same --font-serif / --font-sans aliases).
+  const typography = await getTypographyFresh();
+  const typographyStyle = resolveTypographyStyle(typography);
+
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={fontVariables} suppressHydrationWarning>
+    <html lang="en" className={fontVariables} suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        <style dangerouslySetInnerHTML={{ __html: typographyStyle }} />
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         {children}
       </body>

@@ -7,6 +7,7 @@
  */
 import { supabase } from "./supabase";
 import { createAdminClient } from "./supabase-admin";
+import { DEFAULT_SERIF_ID, DEFAULT_SANS_ID } from "./fonts";
 
 export interface HeroSlide {
   image: string;
@@ -79,6 +80,16 @@ export interface NewArrivalsContent {
   items: NewArrivalItem[];
 }
 
+/** Which of the curated font presets (lib/fonts.ts) is currently live, plus an
+    optional admin-uploaded custom font file per slot — when set, the custom
+    font takes over from the preset (which still serves as its fallback). */
+export interface TypographyContent {
+  serifId: string;
+  sansId: string;
+  customSerifUrl?: string;
+  customSansUrl?: string;
+}
+
 export interface SiteContent {
   hero: HeroContent;
   split: SplitContent;
@@ -86,6 +97,7 @@ export interface SiteContent {
   marquee: MarqueeContent;
   highlights: HighlightsContent;
   newArrivals: NewArrivalsContent;
+  typography: TypographyContent;
 }
 
 export const SITE_CONTENT_DEFAULTS: SiteContent = {
@@ -163,6 +175,10 @@ export const SITE_CONTENT_DEFAULTS: SiteContent = {
       { image: "/img/products/brazil/home/front.png", caption: "Brazil", href: "/product/brazil-home" },
     ],
   },
+  typography: {
+    serifId: DEFAULT_SERIF_ID,
+    sansId: DEFAULT_SANS_ID,
+  },
 };
 
 interface SiteContentRow {
@@ -184,6 +200,7 @@ function mergeAll(rows: SiteContentRow[]): SiteContent {
     marquee: mergeSection(SITE_CONTENT_DEFAULTS.marquee, bySection.get("marquee")),
     highlights: mergeSection(SITE_CONTENT_DEFAULTS.highlights, bySection.get("highlights")),
     newArrivals: mergeSection(SITE_CONTENT_DEFAULTS.newArrivals, bySection.get("newArrivals")),
+    typography: mergeSection(SITE_CONTENT_DEFAULTS.typography, bySection.get("typography")),
   };
 }
 
@@ -198,4 +215,19 @@ async function fetchSiteContent(): Promise<SiteContent> {
 export async function getSiteContentFresh(): Promise<SiteContent> {
   if (!supabase) return SITE_CONTENT_DEFAULTS;
   return fetchSiteContent().catch(() => SITE_CONTENT_DEFAULTS);
+}
+
+/** Single-row fetch — the root layout reads only this on every page (not the
+    full homepage content) so the font pick applies site-wide without paying
+    for hero slides/highlights/etc. on pages that don't render them. */
+export async function getTypographyFresh(): Promise<TypographyContent> {
+  if (!supabase) return SITE_CONTENT_DEFAULTS.typography;
+  try {
+    const db = createAdminClient() ?? supabase!;
+    const { data, error } = await db.from("site_content").select("data").eq("section", "typography").maybeSingle();
+    if (error || !data) return SITE_CONTENT_DEFAULTS.typography;
+    return mergeSection(SITE_CONTENT_DEFAULTS.typography, data.data);
+  } catch {
+    return SITE_CONTENT_DEFAULTS.typography;
+  }
 }

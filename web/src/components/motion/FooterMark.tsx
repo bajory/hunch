@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { gsap, useGSAP, MOTION_OK } from "@/lib/gsap";
+import { Logo } from "@/components/Logo";
 
 /** Oversized wordmark that rises out of the footer as it scrolls into view. */
 export function FooterMark() {
@@ -24,7 +25,7 @@ export function FooterMark() {
 
   return (
     <div ref={ref} className="footer__mark" aria-hidden="true">
-      <span>HUNCH</span>
+      <span><Logo className="footer__mark-logo" /></span>
     </div>
   );
 }

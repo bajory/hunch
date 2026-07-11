@@ -1,8 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
-import type { SiteContent, HeroContent, SplitContent, CraftContent, MarqueeContent, HighlightsContent, NewArrivalsContent } from "@/lib/site-content";
-import { saveSiteContent, uploadSiteImage, uploadSiteVideo } from "./content-actions";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { SiteContent, HeroContent, SplitContent, CraftContent, MarqueeContent, HighlightsContent, NewArrivalsContent, TypographyContent } from "@/lib/site-content";
+import { SERIF_FONTS, SANS_FONTS } from "@/lib/fonts";
+import { saveSiteContent, uploadSiteImage, uploadSiteVideo, uploadSiteFont } from "./content-actions";
+
+/** Injects (or replaces) an @font-face rule client-side, purely so the admin
+    preview below can render an uploaded custom font before it's even saved. */
+function injectPreviewFontFace(id: string, url: string) {
+  let el = document.getElementById(`preview-face-${id}`);
+  if (!el) { el = document.createElement("style"); el.id = `preview-face-${id}`; document.head.appendChild(el); }
+  el.textContent = `@font-face{font-family:'${id}';src:url('${url}');font-display:swap;}`;
+}
 
 type SaveState = "idle" | "saving" | "ok" | "err";
 
@@ -368,9 +378,103 @@ function NewArrivalsEditor({ initial }: { initial: NewArrivalsContent }) {
   );
 }
 
+function CustomFontUpload({ slot, url, onChange, onRemove }: {
+  slot: "serif" | "sans"; url: string | undefined;
+  onChange: (url: string) => void; onRemove: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setBusy(true); setErr(null);
+    const fd = new FormData();
+    fd.append("slot", slot); fd.append("file", file);
+    const res = await uploadSiteFont(fd);
+    if (res.ok && res.url) onChange(res.url);
+    else setErr(res.error ?? "Upload failed");
+    setBusy(false);
+    e.target.value = "";
+  }
+
+  return (
+    <div className="adm-customfont">
+      <button type="button" className={`adm-upload-btn${busy ? " is-busy" : ""}`} disabled={busy} onClick={() => inputRef.current?.click()}>
+        {busy ? "Uploading…" : url ? "Replace uploaded font" : "Or upload your own font file"}
+      </button>
+      {url && <button type="button" className="adm-remove-btn" title="Remove — falls back to the preset above" onClick={onRemove}>✕</button>}
+      {err && <span className="adm-content-img__err">{err}</span>}
+      <input ref={inputRef} type="file" accept=".woff2,.woff,.ttf,.otf" className="adm-file-input" onChange={handleFile} />
+    </div>
+  );
+}
+
+function TypographyEditor({ initial }: { initial: TypographyContent }) {
+  const router = useRouter();
+  const [v, setV] = useState(initial);
+  const [state, setState] = useState<SaveState>("idle");
+  const activeSerif = SERIF_FONTS.find((f) => f.id === v.serifId) ?? SERIF_FONTS[0];
+  const activeSans = SANS_FONTS.find((f) => f.id === v.sansId) ?? SANS_FONTS[0];
+
+  useEffect(() => {
+    if (v.customSerifUrl) injectPreviewFontFace("adm-preview-serif", v.customSerifUrl);
+  }, [v.customSerifUrl]);
+  useEffect(() => {
+    if (v.customSansUrl) injectPreviewFontFace("adm-preview-sans", v.customSansUrl);
+  }, [v.customSansUrl]);
+
+  async function save() {
+    setState("saving");
+    const res = await saveSiteContent("typography", v);
+    setState(res.ok ? "ok" : "err");
+    if (res.ok) router.refresh(); // re-renders the root layout's <style>, so this very page reflects the pick too
+  }
+
+  return (
+    <div className="adm-section">
+      <div className="adm-section__hd">Typography</div>
+      <p className="adm-hint">Applies everywhere — the storefront and this admin dashboard share the same two fonts.</p>
+      <div className="adm-editor__grid" style={{ marginBottom: 16 }}>
+        <label className="adm-field">
+          <span>Display / serif font</span>
+          <select className="adm-select" value={v.serifId} onChange={(e) => setV({ ...v, serifId: e.target.value })}>
+            {SERIF_FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+          </select>
+          <CustomFontUpload slot="serif" url={v.customSerifUrl}
+            onChange={(customSerifUrl) => setV({ ...v, customSerifUrl })}
+            onRemove={() => setV({ ...v, customSerifUrl: undefined })} />
+        </label>
+        <label className="adm-field">
+          <span>UI / body sans font</span>
+          <select className="adm-select" value={v.sansId} onChange={(e) => setV({ ...v, sansId: e.target.value })}>
+            {SANS_FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+          </select>
+          <CustomFontUpload slot="sans" url={v.customSansUrl}
+            onChange={(customSansUrl) => setV({ ...v, customSansUrl })}
+            onRemove={() => setV({ ...v, customSansUrl: undefined })} />
+        </label>
+      </div>
+      <div className="adm-type-preview">
+        <p style={v.customSerifUrl ? { fontFamily: "'adm-preview-serif'" } : undefined}
+          className={v.customSerifUrl ? undefined : activeSerif.className}>
+          The shirt is the statement.
+        </p>
+        <p style={v.customSansUrl ? { fontFamily: "'adm-preview-sans'" } : undefined}
+          className={v.customSansUrl ? undefined : activeSans.className}>
+          Player-version jerseys, pressed to your name.
+        </p>
+      </div>
+      <p className="adm-hint">Uploading your own font overrides the preset above (which stays as its fallback if the file fails to load). .woff2 is smallest/fastest; .woff, .ttf, and .otf also work.</p>
+      <SaveButton state={state} onClick={save} />
+    </div>
+  );
+}
+
 export function ContentEditor({ content }: { content: SiteContent }) {
   return (
     <div className="adm-content-editor">
+      <TypographyEditor initial={content.typography} />
       <HeroEditor initial={content.hero} />
       <SplitEditor initial={content.split} />
       <NewArrivalsEditor initial={content.newArrivals} />
