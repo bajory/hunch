@@ -55,6 +55,11 @@ export function Nav() {
   return (
     <>
       <header className={`nav${solid ? " is-solid" : ""}`}>
+        <button className="nav__menubtn" onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-expanded={menuOpen}>
+          <MenuIcon size={19} strokeWidth={1.7} />
+          <span>Menu</span>
+        </button>
+
         <a href="/house" className="nav__utility">
           <span className="nav__utility-plus">+</span> Contact Us
         </a>
@@ -73,11 +78,6 @@ export function Nav() {
           <button className="nav__icon nav__icon--bag" onClick={openDrawer} aria-label={`Open bag, ${count} items`}>
             <ShoppingBag size={19} strokeWidth={1.6} />
             {count > 0 && <span className="nav__bag-count">{count}</span>}
-          </button>
-
-          <button className="nav__menubtn" onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-expanded={menuOpen}>
-            <MenuIcon size={19} strokeWidth={1.7} />
-            <span>Menu</span>
           </button>
         </div>
       </header>

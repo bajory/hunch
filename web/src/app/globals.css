@@ -297,6 +297,10 @@ body:has(.house__hero) .nav:not(.is-solid) {
   align-items: center;
   gap: 8px;
   color: var(--bone-dim);
+  /* Mobile-first: this is now the first flex child, so it sits at the far
+     left by default (icons cluster stays right via nav__side's own
+     margin-left: auto). Desktop restores it to its old spot on the far
+     right, after the icons — see the >760px override below. */
   font-family: var(--font-ui);
   font-size: var(--t-micro);
   font-weight: 500;
@@ -305,6 +309,9 @@ body:has(.house__hero) .nav:not(.is-solid) {
   padding: 6px 4px;
   transition: color 0.3s var(--ease);
   white-space: nowrap;
+}
+@media (min-width: 761px) {
+  .nav__menubtn { order: 1; }
 }
 .nav__menubtn:hover { color: var(--bone); }
 
