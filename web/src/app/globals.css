@@ -486,7 +486,7 @@ body:has(.house__hero) .nav:not(.is-solid) {
   position: relative;
   z-index: 2;
   width: 100%;
-  padding: 0 var(--gutter) clamp(40px, 7vh, 88px);
+  padding: 0 var(--gutter) clamp(96px, 14vh, 140px);
 }
 .hero__kicker { margin-bottom: 20px; display: flex; align-items: center; gap: 16px; }
 .hero__kicker .rule { width: 56px; height: 1px; background: var(--brass); }
