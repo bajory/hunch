@@ -12,13 +12,15 @@ if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger, SplitText, Flip, CustomEase, useGSAP);
   gsap.defaults({ ease: "expo.out", duration: 1 });
 
-  // Mobile Safari resizes the viewport as its address bar collapses mid-scroll,
-  // which can desync a pinned ScrollTrigger's start/end from what's actually on
-  // screen — the classic symptom is a pinned rail (like the featured drops rail)
-  // opening already scrolled a card or two in in the second card instead of the first.
-  // normalizeScroll simulates scroll with a transform so pins stay in sync
-  // regardless of toolbar show/hide.
-  ScrollTrigger.normalizeScroll(true);
+  // Tried ScrollTrigger.normalizeScroll() here to fix a cosmetic mobile-Safari
+  // issue (a pinned rail could open slightly scrolled-in if the address bar
+  // collapsed mid-scroll, desyncing its start/end). Left OFF on purpose: on
+  // real touch devices it intercepts all touch input and drives scrolling via
+  // a transform, and its tap-vs-drag detection isn't reliable — it froze
+  // scrolling inside overlays (even with allowNestedScroll) and, worse, could
+  // misread a scroll-drag over a product card as a tap and navigate. Neither
+  // of those showed up in desktop DevTools' mobile emulation, only on real
+  // devices — don't re-enable without testing scroll AND tap on a real phone.
 }
 
 /** House eases */

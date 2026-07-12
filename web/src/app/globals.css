@@ -1492,8 +1492,46 @@ body:has(.house__hero) .nav:not(.is-solid) {
 .studio__seg button + button { border-left: 1px solid var(--line); }
 .studio__seg button.is-on { background: var(--bone); color: var(--void); }
 
-.studio__players { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* Competition switcher — small icon-led pills rather than a 50/50 split;
+   no licensed league logos on hand, so compIcon() picks a generic mark
+   by competition kind instead of faking real badges. */
+.studio__comps { display: flex; flex-wrap: wrap; gap: 8px; }
+.studio__comps button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+  transition: all 0.25s var(--ease);
+}
+.studio__comps button svg { flex-shrink: 0; color: var(--brass); }
+.studio__comps-badge { width: 15px; height: 15px; object-fit: contain; flex-shrink: 0; }
+.studio__comps button.is-on { background: var(--bone); border-color: var(--bone); color: var(--void); }
+.studio__comps button.is-on svg { color: var(--void); }
+
+/* Squad roster — a swipeable horizontal row on narrow screens (nothing to
+   scroll the whole sheet for), a plain grid once there's room to spare. */
+.studio__players {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.studio__players::-webkit-scrollbar { display: none; }
 .studio__player {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  min-width: 148px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1507,6 +1545,10 @@ body:has(.house__hero) .nav:not(.is-solid) {
 .studio__player:hover { border-color: var(--bone-faint); color: var(--bone); }
 .studio__player.is-on { border-color: var(--brass); color: var(--bone); }
 .studio__player .num { font-family: var(--font-display); font-size: 1.1rem; color: var(--brass); }
+@media (min-width: 900px) {
+  .studio__players { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; padding-bottom: 0; }
+  .studio__player { min-width: 0; }
+}
 
 .studio__fields { display: grid; grid-template-columns: 1fr 92px; gap: 10px; }
 .studio__field { display: flex; flex-direction: column; gap: 7px; }
@@ -1525,12 +1567,10 @@ body:has(.house__hero) .nav:not(.is-solid) {
 }
 .studio__field input:focus { border-color: var(--brass); }
 
-.studio__patch { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line-soft); padding: 12px 14px; }
-.studio__patch img { width: 44px; height: 44px; object-fit: contain; }
-.studio__patch-title { font-size: var(--t-small); color: var(--bone); }
-.studio__patch-sub { font-size: var(--t-micro); color: var(--bone-faint); letter-spacing: 0.06em; }
-
-/* Personalise sheet — bottom sheet on mobile, side panel from 761px up */
+/* Personalise sheet — full screen on every breakpoint, so the jersey stays
+   in view the whole time you're typing rather than sharing a cramped
+   sliver of one. Single column stacked on narrow screens; the preview
+   pins beside scrollable controls from 900px up (see below). */
 .pmodalveil {
   position: fixed;
   inset: 0;
@@ -1545,13 +1585,9 @@ body:has(.house__hero) .nav:not(.is-solid) {
 
 .pmodal {
   position: fixed;
-  left: 0; right: 0; bottom: 0;
+  inset: 0;
   z-index: var(--z-drawer);
-  max-height: 88dvh;
   background: var(--void);
-  border-radius: 20px 20px 0 0;
-  border-top: 1px solid var(--line);
-  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.25);
   transform: translateY(102%);
   transition: transform 0.55s var(--ease);
   display: flex;
@@ -1594,12 +1630,17 @@ body:has(.house__hero) .nav:not(.is-solid) {
 
 .pmodal__body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
   padding: 24px clamp(20px, 4vw, 32px);
   display: flex;
   flex-direction: column;
   gap: 22px;
 }
+.pmodal__controls-col { display: flex; flex-direction: column; gap: 22px; }
 
 .pmodal__foot {
   flex-shrink: 0;
@@ -1623,20 +1664,27 @@ body:has(.house__hero) .nav:not(.is-solid) {
 }
 .pmodal__remove:hover { color: var(--bone-dim); }
 
-@media (min-width: 761px) {
+@media (min-width: 900px) {
   .pmodal__handle { display: none; }
-  .pmodal {
-    left: auto;
-    top: 0; bottom: 0;
-    width: min(480px, 94vw);
-    max-height: none;
-    border-radius: 0;
-    border-top: none;
-    border-left: 1px solid var(--line);
-    box-shadow: none;
-    transform: translateX(102%);
+  .pmodal__body {
+    flex-direction: row;
+    align-items: stretch;
+    gap: clamp(32px, 4vw, 64px);
+    padding: clamp(24px, 3vw, 40px) clamp(24px, 4vw, 56px);
   }
-  .pmodal.is-open { transform: none; }
+  .pmodal__preview-col {
+    flex: 1 1 55%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+  }
+  .pmodal__preview-col .preview { width: 100%; max-width: 520px; }
+  .pmodal__controls-col {
+    flex: 0 0 380px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
 }
 
 /* Print preview */
@@ -1801,20 +1849,8 @@ body:has(.house__hero) .nav:not(.is-solid) {
   .detail { grid-template-columns: 1fr; gap: clamp(28px, 5vh, 48px); }
   .detail__figure { max-width: 460px; }
 
-  /* The gallery and buy panel stack on mobile, so the Personalise studio's
-     name/number fields end up far below the jersey photo. Pin the gallery
-     under the nav instead of letting it scroll away — the live preview
-     (and its name/number print) stays visible the whole time you're typing,
-     no scrolling up to check and back down to keep going. */
-  .gallery {
-    position: sticky;
-    top: var(--nav-h);
-    z-index: 5;
-    background: var(--void);
-    padding-top: 10px;
-    min-height: 0;
-  }
-  .gallery__main { height: 34vh; min-height: 220px; padding: clamp(14px, 4vw, 28px); }
+  .gallery { min-height: 0; }
+  .gallery__main { height: 48vh; min-height: 320px; padding: clamp(14px, 4vw, 28px); }
 }
 
 @media (max-width: 760px) {
@@ -1827,11 +1863,23 @@ body:has(.house__hero) .nav:not(.is-solid) {
   .split__panel { min-height: 52svh; }
   .split__panel + .split__panel { border-left: none; }
   .hero__title { max-width: none; }
-  .studio__players { grid-template-columns: 1fr; }
   .footer__grid { flex-direction: column; gap: 32px; }
 
-  .gallery__main { height: 30vh; min-height: 200px; padding: clamp(16px, 5vw, 32px); }
+  .gallery__main { height: 54vh; min-height: 300px; padding: clamp(16px, 5vw, 32px); }
   .gallery__thumbs { margin-top: 8px; gap: 8px; }
   .gallery__thumb { width: 52px; padding: 6px; }
   .gallery__source { margin-top: 6px; font-size: 10px; }
+
+  /* One swipeable row instead of wrapping onto a second line. */
+  .filterbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .filterbar::-webkit-scrollbar { display: none; }
+  .filterbar__group { flex-wrap: nowrap; flex-shrink: 0; }
+  .filterbar__sep { flex-shrink: 0; }
+  .chip { scroll-snap-align: start; }
 }

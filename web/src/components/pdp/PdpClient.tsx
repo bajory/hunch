@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight, Trophy, Globe, Shirt, X } from "lucide-react";
 import { useGSAP } from "@/lib/gsap";
 import {
   formatPrice, sizeOrderFor, productTypeDef, KIT_TYPE_LABELS,
@@ -46,6 +46,14 @@ const META_COPY: Record<ProductType, Array<{ label: string; value: (p: Product) 
     { label: "Dispatch", value: () => "2–4 working days" },
   ],
 };
+
+/** No licensed competition logos on hand — a generic mark by competition
+    kind keeps the switcher legible without faking real league badges. */
+function compIcon(kind: Competition["kind"] | undefined) {
+  if (kind === "continental") return Trophy;
+  if (kind === "international") return Globe;
+  return Shirt;
+}
 
 export function PdpClient({
   product, siblings, teams, competitions, printMap,
@@ -97,9 +105,6 @@ export function PdpClient({
   const comp = competitions[competition];
   const patchId = comp?.patch ?? competition;
   const patchMeta = PATCHES[patchId] ?? { label: comp?.label ?? competition, sleeve: "Right sleeve" };
-  const patchImg = isJersey && kitType && active.teamSlug
-    ? patchImageFor(active.teamSlug as never, competition, printMap, kitType as KitTypeId)
-    : null;
 
   const sizeSet = sizeOrderFor(active);
   const availableSizes = useMemo(
@@ -140,15 +145,31 @@ export function PdpClient({
     setView("front");
   }
 
-  // Lock page scroll while the sheet is open, and let Escape close it — same
-  // conventions as the cart drawer and side menu.
+  // Lock page scroll while the sheet is open, and let Escape close it.
+  // Plain `overflow: hidden` on <body> doesn't reliably block scrolling on
+  // iOS Safari, and it also leaves WebKit unsure which element owns the
+  // touch gesture — the sheet's own internal scroll froze along with the
+  // background. Pinning the body itself to position:fixed is the standard
+  // iOS-safe lock (restores the exact scroll position on close).
   useEffect(() => {
     if (!modalOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = { position: body.style.position, top: body.style.top, width: body.style.width, overflow: body.style.overflow };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeStudio(); };
     window.addEventListener("keydown", onKey);
-    return () => { document.body.style.overflow = prevOverflow; window.removeEventListener("keydown", onKey); };
+    return () => {
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.width = prev.width;
+      body.style.overflow = prev.overflow;
+      window.scrollTo(0, scrollY);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [modalOpen]);
 
   function selectPlayer(i: number) {
@@ -357,64 +378,69 @@ export function PdpClient({
             </div>
 
             <div className="pmodal__body">
-              {kitType && active.teamSlug && (
-                <div className="preview">
-                  <PrintPreview
-                    teamSlug={active.teamSlug} competition={competition} kitType={kitType as KitTypeId}
-                    name={name} number={number}
-                    teams={teams} competitions={competitions} printMap={printMap}
-                  />
-                </div>
-              )}
-
-              {personalization!.competitions.length > 1 && (
-                <div className="studio__seg" role="group" aria-label="Competition">
-                  {personalization!.competitions.map((c) => (
-                    <button key={c} className={c === competition ? "is-on" : ""} onClick={() => setCompetition(c)}>
-                      {competitions[c]?.label ?? c}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="studio__seg" role="group" aria-label="Personalisation mode">
-                <button className={mode === "player" ? "is-on" : ""} onClick={() => { setMode("player"); selectPlayer(player); }}>Squad Player</button>
-                <button className={mode === "custom" ? "is-on" : ""} onClick={() => { setMode("custom"); setName(""); setNumber(""); }}>Your Name</button>
+              <div className="pmodal__preview-col">
+                {kitType && active.teamSlug && (
+                  <div className="preview">
+                    <PrintPreview
+                      teamSlug={active.teamSlug} competition={competition} kitType={kitType as KitTypeId}
+                      name={name} number={number}
+                      teams={teams} competitions={competitions} printMap={printMap}
+                    />
+                  </div>
+                )}
               </div>
 
-              {mode === "player" ? (
-                <div className="studio__players">
-                  {roster.map((p, i) => (
-                    <button key={p.name} className={`studio__player${i === player ? " is-on" : ""}`} onClick={() => selectPlayer(i)}>
-                      <span>{p.name}</span>
-                      <span className="num">{p.number}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="studio__fields">
-                  <div className="studio__field">
-                    <label htmlFor="p-name">Name</label>
-                    <input id="p-name" type="text" maxLength={14} autoComplete="off" placeholder="Player Name"
-                      value={name} onChange={(e) => setName(e.target.value.slice(0, 14))} />
+              <div className="pmodal__controls-col">
+                {personalization!.competitions.length > 1 && (
+                  <div className="studio__comps" role="group" aria-label="Competition">
+                    {personalization!.competitions.map((c) => {
+                      const tabPatch = isJersey && kitType && active.teamSlug
+                        ? patchImageFor(active.teamSlug as never, c, printMap, kitType as KitTypeId)
+                        : null;
+                      const Icon = compIcon(competitions[c]?.kind);
+                      return (
+                        <button key={c} className={c === competition ? "is-on" : ""} onClick={() => setCompetition(c)}>
+                          {tabPatch ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={tabPatch} alt="" className="studio__comps-badge" />
+                          ) : (
+                            <Icon size={13} strokeWidth={1.6} />
+                          )}
+                          {competitions[c]?.label ?? c}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div className="studio__field">
-                    <label htmlFor="p-num">No.</label>
-                    <input id="p-num" type="text" inputMode="numeric" maxLength={2} autoComplete="off" placeholder="00"
-                      value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, "").slice(0, 2))} />
-                  </div>
-                </div>
-              )}
+                )}
 
-              <div className="studio__patch">
-                {patchImg ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={patchImg} alt={`${patchMeta.label} patch`} />
-                ) : null}
-                <div>
-                  <div className="studio__patch-title">{patchMeta.label} patch</div>
-                  <div className="studio__patch-sub">{patchMeta.sleeve} · lettering in the official {comp?.label} typeface</div>
+                <div className="studio__seg" role="group" aria-label="Personalisation mode">
+                  <button className={mode === "player" ? "is-on" : ""} onClick={() => { setMode("player"); selectPlayer(player); }}>Squad Player</button>
+                  <button className={mode === "custom" ? "is-on" : ""} onClick={() => { setMode("custom"); setName(""); setNumber(""); }}>Your Name</button>
                 </div>
+
+                {mode === "player" ? (
+                  <div className="studio__players">
+                    {roster.map((p, i) => (
+                      <button key={p.name} className={`studio__player${i === player ? " is-on" : ""}`} onClick={() => selectPlayer(i)}>
+                        <span>{p.name}</span>
+                        <span className="num">{p.number}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="studio__fields">
+                    <div className="studio__field">
+                      <label htmlFor="p-name">Name</label>
+                      <input id="p-name" type="text" maxLength={14} autoComplete="off" placeholder="Player Name"
+                        value={name} onChange={(e) => setName(e.target.value.slice(0, 14))} />
+                    </div>
+                    <div className="studio__field">
+                      <label htmlFor="p-num">No.</label>
+                      <input id="p-num" type="text" inputMode="numeric" maxLength={2} autoComplete="off" placeholder="00"
+                        value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, "").slice(0, 2))} />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

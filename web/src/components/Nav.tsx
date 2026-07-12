@@ -33,15 +33,29 @@ export function Nav() {
   }, []);
 
   // Close the menu on route change, lock page scroll while it's open, and
-  // let Escape close it — the same conventions the cart drawer would want.
+  // let Escape close it. Plain overflow:hidden doesn't reliably block
+  // scrolling on iOS Safari — pinning the body to position:fixed is the
+  // standard iOS-safe lock (restores the exact scroll position on close).
   useEffect(() => { setMenuOpen(false); }, [pathname]);
   useEffect(() => {
     if (!menuOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = { position: body.style.position, top: body.style.top, width: body.style.width, overflow: body.style.overflow };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
     window.addEventListener("keydown", onKey);
-    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
+    return () => {
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.width = prev.width;
+      body.style.overflow = prev.overflow;
+      window.scrollTo(0, scrollY);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [menuOpen]);
 
   function toggleTheme() {
