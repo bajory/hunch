@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { gsap, useGSAP, prefersReducedMotion } from "@/lib/gsap";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, X } from "lucide-react";
+import { useGSAP } from "@/lib/gsap";
 import {
   formatPrice, sizeOrderFor, productTypeDef, KIT_TYPE_LABELS,
   type Product, type ProductType,
@@ -79,6 +80,7 @@ export function PdpClient({
   const [view, setView] = useState<string>("front");
   const [size, setSize] = useState<string | null>(null);
   const [personalise, setPersonalise] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [competition, setCompetition] = useState<CompetitionId>(personalization?.competitions[0] ?? "ucl");
   const [mode, setMode] = useState<Mode>("player");
   const [player, setPlayer] = useState(0);
@@ -87,7 +89,6 @@ export function PdpClient({
   const [toast, setToast] = useState<string | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const studioBodyRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { addItem, openDrawer } = useCart();
 
@@ -118,24 +119,37 @@ export function PdpClient({
     const next = siblings.find((p) => p.slug === slug);
     if (next && !personalizationFor(next, printMap)) {
       setPersonalise(false);
+      setModalOpen(false);
       setView("front");
     }
   }
 
   useGSAP(() => {}, { scope: rootRef });
 
-  function toggleStudio() {
-    const next = !personalise;
-    setPersonalise(next);
-    if (next) setView("back");
-    const body = studioBodyRef.current;
-    if (!body || prefersReducedMotion()) return;
-    if (next) {
-      gsap.fromTo(body, { height: 0, opacity: 0 }, {
-        height: "auto", opacity: 1, duration: 0.7, ease: "expo.out",
-      });
-    }
+  function openStudio() {
+    setPersonalise(true);
+    setModalOpen(true);
+    setView("back");
   }
+  function closeStudio() {
+    setModalOpen(false);
+  }
+  function removePersonalisation() {
+    setPersonalise(false);
+    setModalOpen(false);
+    setView("front");
+  }
+
+  // Lock page scroll while the sheet is open, and let Escape close it — same
+  // conventions as the cart drawer and side menu.
+  useEffect(() => {
+    if (!modalOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeStudio(); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = prevOverflow; window.removeEventListener("keydown", onKey); };
+  }, [modalOpen]);
 
   function selectPlayer(i: number) {
     setPlayer(i);
@@ -293,72 +307,18 @@ export function PdpClient({
           </div>
 
           {canPersonalise && (
-            <div className={`studio${personalise ? " is-open" : ""}`}>
-              <button className="studio__toggle" onClick={toggleStudio} aria-expanded={personalise}>
+            <button className="studio__toggle" onClick={openStudio} aria-haspopup="dialog" aria-expanded={modalOpen}>
+              <span className="studio__toggle-text">
                 <span className="studio__toggle-label">
                   Personalise
                   <span className="fee">+{formatPrice(CUSTOMIZATION_FEE)}</span>
                 </span>
-                <svg className="studio__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-              {personalise && (
-                <div ref={studioBodyRef} className="studio__body">
-                  <div className="studio__inner">
-                    {personalization!.competitions.length > 1 && (
-                      <div className="studio__seg" role="group" aria-label="Competition">
-                        {personalization!.competitions.map((c) => (
-                          <button key={c} className={c === competition ? "is-on" : ""} onClick={() => setCompetition(c)}>
-                            {competitions[c]?.label ?? c}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="studio__seg" role="group" aria-label="Personalisation mode">
-                      <button className={mode === "player" ? "is-on" : ""} onClick={() => { setMode("player"); selectPlayer(player); }}>Squad Player</button>
-                      <button className={mode === "custom" ? "is-on" : ""} onClick={() => { setMode("custom"); setName(""); setNumber(""); }}>Your Name</button>
-                    </div>
-
-                    {mode === "player" ? (
-                      <div className="studio__players">
-                        {roster.map((p, i) => (
-                          <button key={p.name} className={`studio__player${i === player ? " is-on" : ""}`} onClick={() => selectPlayer(i)}>
-                            <span>{p.name}</span>
-                            <span className="num">{p.number}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="studio__fields">
-                        <div className="studio__field">
-                          <label htmlFor="p-name">Name</label>
-                          <input id="p-name" type="text" maxLength={14} autoComplete="off" placeholder="Player Name"
-                            value={name} onChange={(e) => setName(e.target.value.slice(0, 14))} />
-                        </div>
-                        <div className="studio__field">
-                          <label htmlFor="p-num">No.</label>
-                          <input id="p-num" type="text" inputMode="numeric" maxLength={2} autoComplete="off" placeholder="00"
-                            value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, "").slice(0, 2))} />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="studio__patch">
-                      {patchImg ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={patchImg} alt={`${patchMeta.label} patch`} />
-                      ) : null}
-                      <div>
-                        <div className="studio__patch-title">{patchMeta.label} patch</div>
-                        <div className="studio__patch-sub">{patchMeta.sleeve} · lettering in the official {comp?.label} typeface</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+                {fee > 0 && (
+                  <span className="studio__toggle-sub">{name || "Blank"}{number ? ` · ${number}` : ""}</span>
+                )}
+              </span>
+              <ChevronRight size={16} strokeWidth={1.6} />
+            </button>
           )}
 
           <button className="btn" style={{ justifyContent: "center" }} onClick={addToBag}>
@@ -383,6 +343,88 @@ export function PdpClient({
           </ul>
         </section>
       </div>
+
+      {canPersonalise && (
+        <>
+          <div className={`pmodalveil${modalOpen ? " is-open" : ""}`} onClick={closeStudio} aria-hidden="true" />
+          <aside className={`pmodal${modalOpen ? " is-open" : ""}`} role="dialog" aria-modal="true" aria-label="Personalise your jersey">
+            <div className="pmodal__handle" aria-hidden="true" />
+            <div className="pmodal__head">
+              <h2>Personalise <span className="fee">+{formatPrice(CUSTOMIZATION_FEE)}</span></h2>
+              <button className="pmodal__close" onClick={closeStudio} aria-label="Close personalise">
+                <X size={16} strokeWidth={1.8} />
+              </button>
+            </div>
+
+            <div className="pmodal__body">
+              {kitType && active.teamSlug && (
+                <div className="preview">
+                  <PrintPreview
+                    teamSlug={active.teamSlug} competition={competition} kitType={kitType as KitTypeId}
+                    name={name} number={number}
+                    teams={teams} competitions={competitions} printMap={printMap}
+                  />
+                </div>
+              )}
+
+              {personalization!.competitions.length > 1 && (
+                <div className="studio__seg" role="group" aria-label="Competition">
+                  {personalization!.competitions.map((c) => (
+                    <button key={c} className={c === competition ? "is-on" : ""} onClick={() => setCompetition(c)}>
+                      {competitions[c]?.label ?? c}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="studio__seg" role="group" aria-label="Personalisation mode">
+                <button className={mode === "player" ? "is-on" : ""} onClick={() => { setMode("player"); selectPlayer(player); }}>Squad Player</button>
+                <button className={mode === "custom" ? "is-on" : ""} onClick={() => { setMode("custom"); setName(""); setNumber(""); }}>Your Name</button>
+              </div>
+
+              {mode === "player" ? (
+                <div className="studio__players">
+                  {roster.map((p, i) => (
+                    <button key={p.name} className={`studio__player${i === player ? " is-on" : ""}`} onClick={() => selectPlayer(i)}>
+                      <span>{p.name}</span>
+                      <span className="num">{p.number}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="studio__fields">
+                  <div className="studio__field">
+                    <label htmlFor="p-name">Name</label>
+                    <input id="p-name" type="text" maxLength={14} autoComplete="off" placeholder="Player Name"
+                      value={name} onChange={(e) => setName(e.target.value.slice(0, 14))} />
+                  </div>
+                  <div className="studio__field">
+                    <label htmlFor="p-num">No.</label>
+                    <input id="p-num" type="text" inputMode="numeric" maxLength={2} autoComplete="off" placeholder="00"
+                      value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, "").slice(0, 2))} />
+                  </div>
+                </div>
+              )}
+
+              <div className="studio__patch">
+                {patchImg ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={patchImg} alt={`${patchMeta.label} patch`} />
+                ) : null}
+                <div>
+                  <div className="studio__patch-title">{patchMeta.label} patch</div>
+                  <div className="studio__patch-sub">{patchMeta.sleeve} · lettering in the official {comp?.label} typeface</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pmodal__foot">
+              <button className="pmodal__remove" onClick={removePersonalisation}>Remove personalisation</button>
+              <button className="btn" style={{ justifyContent: "center" }} onClick={closeStudio}>Confirm</button>
+            </div>
+          </aside>
+        </>
+      )}
 
       <div className={`toastx${toast ? " is-show" : ""}`} role="status" aria-live="polite">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m5 12 4 4 10-10" /></svg>
