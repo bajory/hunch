@@ -1916,7 +1916,7 @@ body:has(.house__hero) .nav:not(.is-solid) {
 .checkout__section { display: flex; flex-direction: column; gap: 14px; }
 .checkout__heading {
   font-family: var(--font-ui);
-  font-size: var(--t-micro);
+  font-size: var(--t-small);
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--bone-faint);
@@ -1924,11 +1924,11 @@ body:has(.house__hero) .nav:not(.is-solid) {
   padding-bottom: 10px;
 }
 .checkout__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
-.checkout__hint { font-size: var(--t-micro); color: var(--bone-faint); letter-spacing: 0.04em; margin-top: -6px; }
+.checkout__hint { font-size: var(--t-small); color: var(--bone-faint); letter-spacing: 0.02em; margin-top: -6px; }
 .checkout__field { display: flex; flex-direction: column; gap: 7px; }
 .checkout__field label {
   font-family: var(--font-ui);
-  font-size: var(--t-micro);
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--bone-faint);
@@ -1939,7 +1939,10 @@ body:has(.house__hero) .nav:not(.is-solid) {
   color: var(--bone);
   padding: 13px 14px;
   font-family: var(--font-ui);
-  font-size: var(--t-body);
+  /* 1rem (16px), not var(--t-body) (15.2px) — below 16px, iOS Safari
+     auto-zooms the whole page on focus, which reads as "the text is too
+     small" right up until you tap in and it jumps. */
+  font-size: 1rem;
   outline: none;
   transition: border-color 0.25s var(--ease);
 }

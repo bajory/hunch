@@ -98,6 +98,10 @@ export function CheckoutClient() {
           </section>
 
           <section className="checkout__section">
+            <PayPalCheckout email={email} shippingAddress={shippingAddress} />
+          </section>
+
+          <section className="checkout__section">
             <h2 className="checkout__heading">Shipping address</h2>
             <p className="checkout__hint">
               Only needed for PayPal or card — Apple Pay and Google Pay collect this for you.
@@ -137,10 +141,6 @@ export function CheckoutClient() {
                   value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
             </div>
-          </section>
-
-          <section className="checkout__section">
-            <PayPalCheckout email={email} shippingAddress={shippingAddress} />
           </section>
         </div>
 
