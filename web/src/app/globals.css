@@ -1845,6 +1845,18 @@ body:has(.house__hero) .nav:not(.is-solid) {
   border-radius: 4px;
   padding: 8px 10px;
 }
+/* Apple's <apple-pay-button> web component renders at zero size unless the
+   host page sets these custom properties itself — unlike PayPal's own
+   <paypal-button>, it has no built-in default size. */
+apple-pay-button {
+  display: block;
+  width: 100%;
+  --apple-pay-button-width: 100%;
+  --apple-pay-button-height: 44px;
+  --apple-pay-button-border-radius: 4px;
+  --apple-pay-button-padding: 0;
+  --apple-pay-button-box-sizing: border-box;
+}
 .paypal-checkout__cardfields { display: flex; flex-direction: column; gap: 8px; }
 .paypal-checkout__row { display: flex; gap: 8px; }
 .paypal-checkout__row .paypal-checkout__field { flex: 1; }
