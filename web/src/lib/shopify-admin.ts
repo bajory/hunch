@@ -181,6 +181,7 @@ export async function setInventoryQuantity(inventoryItemId: string, quantity: nu
       input: {
         name: "available",
         reason: "correction",
+        ignoreCompareQuantity: true,
         quantities: [{ inventoryItemId, locationId: LOCATION_ID, quantity }],
       },
     },
