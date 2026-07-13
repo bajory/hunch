@@ -42,8 +42,17 @@ export interface CartLine {
   productTitle: string;
   variantTitle: string;
   image: string | null;
+  amount: string;
+  currencyCode: string;
 }
-export interface CartState { id: string; checkoutUrl: string; totalQuantity: number; lines: CartLine[] }
+export interface CartState {
+  id: string;
+  checkoutUrl: string;
+  totalQuantity: number;
+  lines: CartLine[];
+  amount: string;
+  currencyCode: string;
+}
 
 async function storefront<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   if (!isShopifyConfigured()) throw new Error("Shopify is not configured");
@@ -62,11 +71,13 @@ async function storefront<T>(query: string, variables: Record<string, unknown> =
 
 const CART_FIELDS = `
   id checkoutUrl totalQuantity
+  cost { totalAmount { amount currencyCode } }
   lines(first: 50) {
     nodes {
       id
       quantity
       attributes { key value }
+      cost { totalAmount { amount currencyCode } }
       merchandise {
         ... on ProductVariant {
           id
@@ -83,12 +94,14 @@ interface RawCartLineNode {
   id: string;
   quantity: number;
   attributes: CartAttribute[];
+  cost: { totalAmount: { amount: string; currencyCode: string } };
   merchandise: { id: string; title: string; image: { url: string } | null; product: { title: string } };
 }
 interface RawCart {
   id: string;
   checkoutUrl: string;
   totalQuantity: number;
+  cost: { totalAmount: { amount: string; currencyCode: string } };
   lines: { nodes: RawCartLineNode[] };
 }
 
@@ -97,6 +110,8 @@ function toCartState(raw: RawCart): CartState {
     id: raw.id,
     checkoutUrl: raw.checkoutUrl,
     totalQuantity: raw.totalQuantity,
+    amount: raw.cost.totalAmount.amount,
+    currencyCode: raw.cost.totalAmount.currencyCode,
     lines: raw.lines.nodes.map((n) => ({
       id: n.id,
       quantity: n.quantity,
@@ -105,6 +120,8 @@ function toCartState(raw: RawCart): CartState {
       productTitle: n.merchandise.product.title,
       variantTitle: n.merchandise.title,
       image: n.merchandise.image?.url ?? null,
+      amount: n.cost.totalAmount.amount,
+      currencyCode: n.cost.totalAmount.currencyCode,
     })),
   };
 }

@@ -261,3 +261,32 @@ export async function setInventoryQuantity(inventoryItemId: string, quantity: nu
   const errs = d.inventorySetQuantities.userErrors;
   if (errs.length > 0) throw new Error(`inventorySetQuantities failed: ${JSON.stringify(errs)}`);
 }
+
+/** Decrements (or increments, given a positive delta) on-hand quantity for
+    one variant — used by the PayPal capture route to reflect a sale Shopify
+    never saw itself. Delta-based (inventoryAdjustQuantities), not the
+    read-then-set setInventoryQuantity above — that pairing is racy under
+    concurrent orders; this mutation is atomic on Shopify's side. */
+export async function adjustInventoryQuantity(inventoryItemId: string, delta: number): Promise<void> {
+  if (!LOCATION_ID) throw new Error("SHOPIFY_LOCATION_ID is not configured");
+
+  const query = `
+    mutation InventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!) {
+      inventoryAdjustQuantities(input: $input) {
+        userErrors { field message }
+      }
+    }`;
+
+  const d = await adminGraphQL<{ inventoryAdjustQuantities: { userErrors: { field: string[]; message: string }[] } }>(
+    query,
+    {
+      input: {
+        name: "available",
+        reason: "correction",
+        changes: [{ delta, inventoryItemId, locationId: LOCATION_ID }],
+      },
+    },
+  );
+  const errs = d.inventoryAdjustQuantities.userErrors;
+  if (errs.length > 0) throw new Error(`inventoryAdjustQuantities failed: ${JSON.stringify(errs)}`);
+}

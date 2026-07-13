@@ -1,6 +1,7 @@
 "use client";
 
 import { useCart } from "./CartProvider";
+import { PayPalCheckout } from "./PayPalCheckout";
 import type { CartAttribute, CartLine } from "@/lib/shopify";
 
 function attr(attributes: CartAttribute[], key: string): string {
@@ -104,6 +105,7 @@ export function CartDrawer() {
             Checkout
           </button>
           <span className="microlabel" style={{ textAlign: "center" }}>Secure checkout · Complimentary returns</span>
+          <PayPalCheckout />
         </div>
       </aside>
     </>
