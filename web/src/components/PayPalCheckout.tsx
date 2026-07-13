@@ -411,19 +411,27 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
       if (cancelled) return;
       const { merchantCapabilities, supportedNetworks } = await bridge.config();
       if (cancelled) return;
+      // TEMPORARY — oncancel fires immediately on real devices, before Apple
+      // even attempts merchant validation, which points at the session
+      // request itself being rejected client-side. Logging the exact
+      // values PayPal's bridge.config() actually returned — if either
+      // array is empty, that's very likely why.
+      reportClientError("applepay.bridge.config", new Error(`merchantCapabilities=${JSON.stringify(merchantCapabilities)} supportedNetworks=${JSON.stringify(supportedNetworks)}`));
       btn.removeAttribute("hidden");
       const onClick = () => {
         setStatus("processing");
         try {
           const ApplePaySessionCtor = window.ApplePaySession as ApplePaySessionCtor;
-          const session = new ApplePaySessionCtor(3, {
+          const sessionRequest = {
             countryCode: "US",
             currencyCode: "USD",
             merchantCapabilities,
             supportedNetworks,
             total: { label: "HUNCH", amount: (Number(cart?.amount ?? 0) / QAR_PER_USD).toFixed(2) },
             requiredShippingContactFields: ["postalAddress", "name", "email"],
-          });
+          };
+          reportClientError("applepay.sessionRequest", new Error(JSON.stringify(sessionRequest)));
+          const session = new ApplePaySessionCtor(3, sessionRequest);
           // Fires when the sheet is dismissed or an internal Apple-side
           // error occurs WITHOUT ever reaching onvalidatemerchant or
           // onpaymentauthorized — previously unhandled, which is almost
