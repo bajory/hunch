@@ -1818,6 +1818,11 @@ body:has(.house__hero) .nav:not(.is-solid) {
 /* ── Direct PayPal checkout (shortcut alongside Shopify checkout) ───────── */
 
 .paypal-checkout { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+/* <paypal-button> doesn't stretch to fill its container by default (unlike
+   a plain block element) — measured at a fixed ~225px intrinsic width
+   regardless of the host's own size, visibly narrower than every other
+   button here until forced to fill explicitly. */
+paypal-button { display: block; width: 100%; height: 44px; }
 /* Google's own createButton() sizes itself via buttonSizeMode: "fill" —
    needs an explicit-height container to fill, matching the other buttons. */
 .paypal-checkout__googlepay { width: 100%; height: 44px; }
@@ -1853,8 +1858,13 @@ body:has(.house__hero) .nav:not(.is-solid) {
    (confirmed via measurement: <apple-pay-button> had zero shadow root,
    zero children, zero height regardless of CSS — PayPal's SDK never
    populated it). This is Safari-only by definition; other browsers just
-   see an ordinary empty button, consistent with never being unhidden there. */
-.apple-pay-button-native {
+   see an ordinary empty button, consistent with never being unhidden there.
+   :not([hidden]) matters — an unscoped display:block here has the same
+   specificity as the browser's own [hidden]{display:none} rule, and author
+   CSS always wins over that regardless of order, so the element was
+   rendering (empty, but a full 44px-tall block) even while genuinely
+   ineligible and still carrying the hidden attribute. */
+.apple-pay-button-native:not([hidden]) {
   display: block;
   width: 100%;
   height: 44px;

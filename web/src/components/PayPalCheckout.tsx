@@ -473,7 +473,7 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
             <div ref={cardExpiryRef} className="paypal-checkout__field" />
             <div ref={cardCvvRef} className="paypal-checkout__field" />
           </div>
-          <button type="button" className="btn btn--line" style={{ width: "100%", justifyContent: "center" }}
+          <button type="button" className="btn btn--ink" style={{ width: "100%", justifyContent: "center" }}
             disabled={status === "processing"} onClick={submitCardFields}>
             {status === "processing" ? "Processing…" : "Pay with card"}
           </button>
