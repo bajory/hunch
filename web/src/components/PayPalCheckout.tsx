@@ -373,14 +373,26 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
   // until onpaymentauthorized actually provides that contact — the order
   // never exists with a blank/guessed address.
   useEffect(() => {
-    if (!instance || !eligible?.isEligible("applepay") || !cartId || !applePayBtnRef.current) return;
+    const btn = applePayBtnRef.current;
+    if (!instance || !eligible?.isEligible("applepay") || !cartId || !btn) return;
     if (!window.ApplePaySession?.canMakePayments()) return;
     let cancelled = false;
+    // This effect reruns on every keystroke in the email field (it's a
+    // dependency, used only as a fallback if Apple Pay's own sheet somehow
+    // doesn't return one) — without tracking and removing the previously
+    // attached listener, each rerun stacked another addEventListener onto
+    // the same persistent button node, so one tap fired every accumulated
+    // handler at once. Confirmed in production: three orders created
+    // within 13ms of each other from a single tap, each with a different
+    // truncated email captured mid-keystroke. Capturing `btn` once above
+    // (rather than re-reading applePayBtnRef.current later) is what lets
+    // the cleanup below reliably remove the exact listener it attached.
+    let attachedOnClick: (() => void) | null = null;
     (async () => {
       const bridge = await instance.createApplePayOneTimePaymentSession();
-      if (cancelled || !applePayBtnRef.current) return;
+      if (cancelled) return;
       const { merchantCapabilities, supportedNetworks } = await bridge.config();
-      const btn = applePayBtnRef.current;
+      if (cancelled) return;
       btn.removeAttribute("hidden");
       const onClick = () => {
         setStatus("processing");
@@ -440,9 +452,13 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
         };
         session.begin();
       };
+      attachedOnClick = onClick;
       btn.addEventListener("click", onClick);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (attachedOnClick) btn.removeEventListener("click", attachedOnClick);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance, eligible, cartId, email]);
 
