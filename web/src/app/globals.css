@@ -1851,8 +1851,20 @@ body:has(.house__hero) .nav:not(.is-solid) {
 .paypal-checkout__field {
   border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 10px 12px;
-  min-height: 40px;
+  padding: 0 12px;
+  height: 44px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+/* PayPal mounts each card field as an iframe with its own default size —
+   without forcing it to fill the container exactly, it renders at whatever
+   height its internal content wants (much taller than a normal input). */
+.paypal-checkout__field iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
 }
 
 /* ── Toast ──────────────────────────────────────────────────────────────── */
