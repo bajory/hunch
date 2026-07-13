@@ -142,6 +142,9 @@ export function PayPalCheckout() {
   const [eligible, setEligible] = useState<EligibleMethods | null>(null);
   const [status, setStatus] = useState<"idle" | "processing" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  // TEMPORARY — diagnosing why Apple Pay isn't unhiding on a real iPhone;
+  // remove once resolved.
+  const [applePayDebug, setApplePayDebug] = useState<string | null>(null);
 
   const paypalBtnRef = useRef<HTMLElement>(null);
   const cardNumberRef = useRef<HTMLDivElement>(null);
@@ -292,15 +295,38 @@ export function PayPalCheckout() {
 
   // Apple Pay — only renders where window.ApplePaySession exists (Safari).
   useEffect(() => {
-    if (!instance || !eligible?.isEligible("applepay") || !cartId || !applePayBtnRef.current) return;
-    if (!window.ApplePaySession?.canMakePayments()) return;
+    if (!instance || !cartId || !applePayBtnRef.current) return;
+    const hasApi = typeof window.ApplePaySession !== "undefined";
+    const eligibleApplePay = eligible?.isEligible("applepay") ?? null;
+    let canMakePayments: boolean | string = "n/a";
+    try {
+      canMakePayments = hasApi ? window.ApplePaySession!.canMakePayments() : "n/a (no ApplePaySession API — not Safari)";
+    } catch (e) {
+      canMakePayments = `threw: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    setApplePayDebug(`hasApplePaySessionApi=${hasApi} eligible.applepay=${eligibleApplePay} canMakePayments=${canMakePayments}`);
+    if (!eligible || !eligibleApplePay) return;
+    if (!hasApi || canMakePayments !== true) return;
     let cancelled = false;
     (async () => {
-      const bridge = await instance.createApplePayOneTimePaymentSession();
+      let bridge;
+      try {
+        bridge = await instance.createApplePayOneTimePaymentSession();
+      } catch (e) {
+        setApplePayDebug((d) => `${d} | createApplePayOneTimePaymentSession threw: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
       if (cancelled || !applePayBtnRef.current) return;
-      const { merchantCapabilities, supportedNetworks } = await bridge.config();
+      let merchantCapabilities, supportedNetworks;
+      try {
+        ({ merchantCapabilities, supportedNetworks } = await bridge.config());
+      } catch (e) {
+        setApplePayDebug((d) => `${d} | bridge.config() threw: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
       const btn = applePayBtnRef.current;
       btn.removeAttribute("hidden");
+      setApplePayDebug((d) => `${d} | button unhidden`);
       const onClick = async () => {
         setStatus("processing");
         try {
@@ -352,7 +378,8 @@ export function PayPalCheckout() {
 
       {eligible?.isEligible("googlepay") && <div ref={googlePayBtnRef} />}
 
-      {eligible?.isEligible("applepay") && <apple-pay-button ref={applePayBtnRef} hidden buttonstyle="black" type="buy" />}
+      <apple-pay-button ref={applePayBtnRef} hidden buttonstyle="black" type="buy" />
+      {applePayDebug && <div className="paypal-checkout__error" style={{ fontSize: 11, wordBreak: "break-all" }}>{applePayDebug}</div>}
 
       {eligible?.isEligible("advanced_cards") && (
         <div className="paypal-checkout__cardfields">
