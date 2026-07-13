@@ -77,6 +77,9 @@ export interface Product {
   gallery?: string[];
   badge?: string;
   colors?: { primary: string; secondary: string; onPrimary: string };
+  /** Shopify variant per size — resolved server-side from product_shopify_variants.
+      Empty/absent for the static fallback list (Shopify unconfigured or unsynced). */
+  sizeVariants?: Record<string, { variantId: string; available: number }>;
 }
 
 /** Jersey-family size order, kept for back-compat; prefer sizeOrderFor(). */

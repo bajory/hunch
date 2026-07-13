@@ -37,7 +37,18 @@ interface TeamJoinRow {
   league_id: string | null;
 }
 
-function rowToProduct(r: ProductRow, teamsById: Map<string, TeamJoinRow>): Product {
+interface VariantRow {
+  product_slug: string;
+  size: string;
+  shopify_variant_id: string;
+  available: number;
+}
+
+function rowToProduct(
+  r: ProductRow,
+  teamsById: Map<string, TeamJoinRow>,
+  variantsBySlug: Map<string, VariantRow[]>,
+): Product {
   const team = r.team_id ? teamsById.get(r.team_id) : undefined;
   return {
     slug: r.slug,
@@ -61,6 +72,9 @@ function rowToProduct(r: ProductRow, teamsById: Map<string, TeamJoinRow>): Produ
     },
     gallery: r.images?.gallery,
     badge: r.team_id ? `/img/badges/${r.team_id}.png` : undefined,
+    sizeVariants: Object.fromEntries(
+      (variantsBySlug.get(r.slug) ?? []).map((v) => [v.size, { variantId: v.shopify_variant_id, available: v.available }]),
+    ),
   };
 }
 
@@ -69,22 +83,29 @@ async function fetchProducts(): Promise<Product[]> {
   // RLS never interfere; the is_published filter below is the deliberate gate
   // (the admin client bypasses RLS, so it must be explicit).
   const db = createAdminClient() ?? supabase!;
-  const [{ data: productRows, error: e1 }, { data: teamRows, error: e2 }] = await Promise.all([
+  const [{ data: productRows, error: e1 }, { data: teamRows, error: e2 }, { data: variantRows, error: e3 }] = await Promise.all([
     db.from("products").select("*")
       .eq("is_published", true)
       .neq("status", "archived")
       .order("sort_order"),
     db.from("teams").select("id,name,team_kind,league_id"),
+    db.from("product_shopify_variants").select("product_slug,size,shopify_variant_id,available"),
   ]);
-  if (e1 || e2) {
-    console.error("[products-db] Supabase fetch errors:", e1, e2);
+  if (e1 || e2 || e3) {
+    console.error("[products-db] Supabase fetch errors:", e1, e2, e3);
     throw new Error("Supabase products fetch failed");
   }
   const rows = (productRows as ProductRow[]) ?? [];
   // Empty table = migration not applied yet → let the caller fall back.
   if (!rows.length) throw new Error("products table empty");
   const teamsById = new Map(((teamRows as TeamJoinRow[]) ?? []).map((t) => [t.id, t]));
-  return rows.map((r) => rowToProduct(r, teamsById));
+  const variantsBySlug = new Map<string, VariantRow[]>();
+  for (const v of (variantRows as VariantRow[]) ?? []) {
+    const list = variantsBySlug.get(v.product_slug) ?? [];
+    list.push(v);
+    variantsBySlug.set(v.product_slug, list);
+  }
+  return rows.map((r) => rowToProduct(r, teamsById, variantsBySlug));
 }
 
 /** Server-side, uncached — pages are force-dynamic, so every load sees admin edits. */
