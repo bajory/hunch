@@ -134,6 +134,11 @@ interface NativeApplePaySession {
   completePayment(status: number): void;
   onvalidatemerchant: ((event: { validationURL: string }) => void) | null;
   onpaymentauthorized: ((event: { payment: { token: unknown; shippingContact?: ApplePayContact } }) => void) | null;
+  /** Fires when the sheet is dismissed or an internal error occurs WITHOUT
+      ever reaching onvalidatemerchant or onpaymentauthorized — previously
+      unhandled, which meant a failure here left `status` stuck on
+      "processing" forever with zero error shown anywhere. */
+  oncancel: (() => void) | null;
 }
 
 let sdkScriptPromise: Promise<void> | null = null;
@@ -179,6 +184,19 @@ async function captureOnServer(orderId: string): Promise<void> {
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? "Failed to capture order");
+}
+
+// TEMPORARY — reports client-side payment errors to a debug endpoint so
+// they show up in `vercel logs` instead of relying on reading tiny error
+// text off a phone screen. Remove alongside the debug route once resolved.
+function reportClientError(context: string, e: unknown): void {
+  const message = e instanceof Error ? e.message : String(e);
+  const stack = e instanceof Error ? e.stack : undefined;
+  fetch("/api/debug-client-error-temp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ context, message, stack, userAgent: navigator.userAgent, url: location.href }),
+  }).catch(() => {});
 }
 
 export function PayPalCheckout({ email, shippingAddress }: { email: string; shippingAddress: ShippingAddress | null }) {
@@ -396,61 +414,83 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
       btn.removeAttribute("hidden");
       const onClick = () => {
         setStatus("processing");
-        const ApplePaySessionCtor = window.ApplePaySession as ApplePaySessionCtor;
-        const session = new ApplePaySessionCtor(3, {
-          countryCode: "US",
-          currencyCode: "USD",
-          merchantCapabilities,
-          supportedNetworks,
-          total: { label: "HUNCH", amount: (Number(cart?.amount ?? 0) / QAR_PER_USD).toFixed(2) },
-          requiredShippingContactFields: ["postalAddress", "name", "email"],
-        });
-        session.onvalidatemerchant = async (event) => {
-          try {
-            const { merchantSession } = await bridge.validateMerchant({ validationUrl: event.validationURL });
-            session.completeMerchantValidation(merchantSession);
-          } catch (e) {
-            // Cancels the sheet outright instead of leaving it stuck on
-            // "Processing" — completeMerchantValidation() is the only
-            // success signal Apple's API has, there's no explicit
-            // "validation failed" one, so abort() is the correct way to
-            // tell Apple's own UI this attempt is over.
-            session.abort();
-            setError(`Apple Pay merchant validation failed: ${e instanceof Error ? e.message : String(e)}`);
+        try {
+          const ApplePaySessionCtor = window.ApplePaySession as ApplePaySessionCtor;
+          const session = new ApplePaySessionCtor(3, {
+            countryCode: "US",
+            currencyCode: "USD",
+            merchantCapabilities,
+            supportedNetworks,
+            total: { label: "HUNCH", amount: (Number(cart?.amount ?? 0) / QAR_PER_USD).toFixed(2) },
+            requiredShippingContactFields: ["postalAddress", "name", "email"],
+          });
+          // Fires when the sheet is dismissed or an internal Apple-side
+          // error occurs WITHOUT ever reaching onvalidatemerchant or
+          // onpaymentauthorized — previously unhandled, which is almost
+          // certainly why "payment not complete" showed with no error
+          // anywhere: status was left stuck on "processing" and nothing
+          // was ever reported.
+          session.oncancel = () => {
+            reportClientError("applepay.oncancel", new Error("Apple Pay session cancelled or failed internally with no other callback firing"));
+            setError("Apple Pay didn't complete — the sheet was cancelled or an internal error occurred (reported for debugging).");
             setStatus("error");
-          }
-        };
-        session.onpaymentauthorized = async (event) => {
-          try {
-            const contact = event.payment.shippingContact;
-            if (!contact) throw new Error("Apple Pay did not provide a shipping address");
-            const shipping = {
-              fullName: [contact.givenName, contact.familyName].filter(Boolean).join(" ") || "Apple Pay customer",
-              addressLine1: contact.addressLines?.[0] ?? "",
-              city: contact.locality ?? "",
-              countryCode: contact.countryCode ?? "",
-              postalCode: contact.postalCode,
-            };
-            const buyerEmail = contact.emailAddress ?? email;
-            if (!buyerEmail) throw new Error("No email available from Apple Pay");
-            // Order matters: only tell Apple's UI the payment succeeded
-            // once our own backend has actually captured it — telling
-            // Apple "success" first and then failing our own capture
-            // would show the buyer a successful payment we never recorded.
-            const { orderId } = await createOrderOnServer(cartId, buyerEmail, shipping);
-            await bridge.confirmOrder({ orderId, token: event.payment.token });
-            await captureOnServer(orderId);
-            session.completePayment(ApplePaySessionCtor.STATUS_SUCCESS);
-            clearCart();
-            setStatus("done");
-            setTimeout(closeDrawer, 1500);
-          } catch (e) {
-            session.completePayment(ApplePaySessionCtor.STATUS_FAILURE);
-            setError(`Apple Pay payment failed: ${e instanceof Error ? e.message : String(e)}`);
-            setStatus("error");
-          }
-        };
-        session.begin();
+          };
+          session.onvalidatemerchant = async (event) => {
+            try {
+              const { merchantSession } = await bridge.validateMerchant({ validationUrl: event.validationURL });
+              session.completeMerchantValidation(merchantSession);
+            } catch (e) {
+              // Cancels the sheet outright instead of leaving it stuck on
+              // "Processing" — completeMerchantValidation() is the only
+              // success signal Apple's API has, there's no explicit
+              // "validation failed" one, so abort() is the correct way to
+              // tell Apple's own UI this attempt is over.
+              reportClientError("applepay.onvalidatemerchant", e);
+              session.abort();
+              setError(`Apple Pay merchant validation failed: ${e instanceof Error ? e.message : String(e)}`);
+              setStatus("error");
+            }
+          };
+          session.onpaymentauthorized = async (event) => {
+            try {
+              const contact = event.payment.shippingContact;
+              if (!contact) throw new Error("Apple Pay did not provide a shipping address");
+              const shipping = {
+                fullName: [contact.givenName, contact.familyName].filter(Boolean).join(" ") || "Apple Pay customer",
+                addressLine1: contact.addressLines?.[0] ?? "",
+                city: contact.locality ?? "",
+                countryCode: contact.countryCode ?? "",
+                postalCode: contact.postalCode,
+              };
+              const buyerEmail = contact.emailAddress ?? email;
+              if (!buyerEmail) throw new Error("No email available from Apple Pay");
+              // Order matters: only tell Apple's UI the payment succeeded
+              // once our own backend has actually captured it — telling
+              // Apple "success" first and then failing our own capture
+              // would show the buyer a successful payment we never recorded.
+              const { orderId } = await createOrderOnServer(cartId, buyerEmail, shipping);
+              await bridge.confirmOrder({ orderId, token: event.payment.token });
+              await captureOnServer(orderId);
+              session.completePayment(ApplePaySessionCtor.STATUS_SUCCESS);
+              clearCart();
+              setStatus("done");
+              setTimeout(closeDrawer, 1500);
+            } catch (e) {
+              reportClientError("applepay.onpaymentauthorized", e);
+              session.completePayment(ApplePaySessionCtor.STATUS_FAILURE);
+              setError(`Apple Pay payment failed: ${e instanceof Error ? e.message : String(e)}`);
+              setStatus("error");
+            }
+          };
+          session.begin();
+        } catch (e) {
+          // Covers a synchronous throw from `new ApplePaySessionCtor(...)`
+          // or `session.begin()` itself — previously uncaught, which would
+          // have left status stuck on "processing" with zero visibility.
+          reportClientError("applepay.onClick", e);
+          setError(`Apple Pay failed to start: ${e instanceof Error ? e.message : String(e)}`);
+          setStatus("error");
+        }
       };
       attachedOnClick = onClick;
       btn.addEventListener("click", onClick);

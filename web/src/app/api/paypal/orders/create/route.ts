@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
       { email, shipping: shippingAddress },
     );
   } catch (e) {
+    console.error("PayPal create order failed:", e);
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 

@@ -39,10 +39,12 @@ export async function POST(req: NextRequest) {
       try {
         captured = await getPayPalOrder(orderId);
       } catch (e2) {
+        console.error("PayPal capture failed (getPayPalOrder fallback also failed):", e2);
         await db.from("orders").update({ status: "failed" }).eq("paypal_order_id", orderId);
         return NextResponse.json({ error: e2 instanceof Error ? e2.message : String(e2) }, { status: 500 });
       }
     } else {
+      console.error("PayPal capture failed:", e);
       await db.from("orders").update({ status: "failed" }).eq("paypal_order_id", orderId);
       return NextResponse.json({ error: message }, { status: 500 });
     }
