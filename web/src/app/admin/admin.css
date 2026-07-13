@@ -472,6 +472,7 @@
 .adm-pill.is-good  { color: var(--adm-good);  background: var(--adm-good-bg);  border-color: var(--adm-good-border); }
 .adm-pill.is-warn  { color: var(--adm-warn);  background: var(--adm-warn-bg);  border-color: var(--adm-warn-border); }
 .adm-pill.is-muted { color: var(--adm-muted); background: var(--adm-muted-bg); border-color: var(--adm-muted-border); }
+.adm-pill.is-bad   { color: var(--adm-bad);   background: var(--adm-bad-bg);   border-color: var(--adm-bad-border); }
 
 /* ── Kit editor shell ───────────────────────────────────────── */
 

@@ -22,6 +22,17 @@ export function isShopifyConfigured(): boolean {
   return Boolean(DOMAIN && TOKEN);
 }
 
+/** Deep link into the Shopify admin UI for a synced product — used by the
+    admin's read-only price/stock display, since those fields are edited in
+    Shopify now, not here. Store handle is just the myshopify.com domain
+    without its suffix; NEXT_PUBLIC_ so this also works from client code. */
+export function shopifyAdminProductUrl(shopifyProductId: string | null | undefined): string | null {
+  if (!shopifyProductId || !DOMAIN) return null;
+  const handle = DOMAIN.replace(/\.myshopify\.com$/, "");
+  const numericId = shopifyProductId.split("/").pop();
+  return `https://admin.shopify.com/store/${handle}/products/${numericId}`;
+}
+
 export interface CartAttribute { key: string; value: string }
 export interface CartLine {
   id: string;

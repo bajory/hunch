@@ -74,6 +74,9 @@ export interface AdminProductRow {
   images: { front?: string; back?: string; gallery?: string[]; source?: string };
   sort_order: number;
   is_published: boolean;
+  shopify_product_id: string | null;
+  shopify_synced_at: string | null;
+  shopify_sync_error: string | null;
 }
 
 export interface RosterRow {

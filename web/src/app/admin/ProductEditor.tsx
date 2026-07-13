@@ -2,11 +2,12 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { PRODUCT_TYPE_DEFS, productTypeDef } from "@/lib/products";
+import { PRODUCT_TYPE_DEFS, productTypeDef, formatPrice } from "@/lib/products";
+import { shopifyAdminProductUrl } from "@/lib/shopify";
 import { KIT_TYPES, KIT_TYPE_LABEL, type AdminProductRow, type KitTypeId } from "./types";
 import {
   createProduct, updateProduct, setProductPublished, archiveProduct, deleteProduct,
-  uploadProductImage, removeProductImage,
+  uploadProductImage, removeProductImage, createInShopify,
 } from "./products-actions";
 
 interface TeamOption {
@@ -20,6 +21,7 @@ const BLANK: AdminProductRow = {
   slug: "", team_id: null, name: "", product_type: "jersey", kit_type: "home",
   season: "", edition: "", price: 0, status: "available", customizable: false,
   sizes: {}, images: {}, sort_order: 100, is_published: false,
+  shopify_product_id: null, shopify_synced_at: null, shopify_sync_error: null,
 };
 
 type SaveState = "idle" | "saving" | "ok" | "err";
@@ -65,6 +67,8 @@ export function ProductEditor({ mode, initial, teams }: {
 
   const isJersey = row.product_type === "jersey";
   const sizeSet = productTypeDef(row.product_type).sizeSet;
+  const isSynced = mode === "edit" && Boolean(row.shopify_product_id);
+  const shopifyUrl = shopifyAdminProductUrl(row.shopify_product_id);
   const team = teams.find((t) => t.id === row.team_id);
   // Kit Studio calibrates per competition — same mapping the Studio itself uses.
   const studioComp = team ? (team.team_kind === "national" ? "worldcup" : (team.league_id ?? "laliga")) : null;
@@ -102,6 +106,14 @@ export function ProductEditor({ mode, initial, teams }: {
     const res = await updateProduct(row.slug, payload());
     setSaveState(res.ok ? "ok" : "err");
     if (!res.ok) setMsg(res.error ?? "Save failed");
+  }
+
+  function handleCreateInShopify() {
+    startTransition(async () => {
+      const res = await createInShopify(row.slug);
+      if (res.ok) { setMsg("Synced to Shopify"); setSaveState("ok"); router.refresh(); }
+      else { setMsg(res.error ?? "Shopify sync failed"); setSaveState("err"); }
+    });
   }
 
   function togglePublish() {
@@ -224,9 +236,16 @@ export function ProductEditor({ mode, initial, teams }: {
               onChange={(e) => set("edition", e.target.value)} />
           </label>
           <label className="adm-field">
-            <span>Price (QAR)</span>
-            <input className="adm-input" type="number" min={0} step="1" value={row.price}
-              onChange={(e) => set("price", Number(e.target.value))} />
+            <span>Price {isSynced ? "— set in Shopify" : "(QAR)"}</span>
+            {isSynced ? (
+              <div className="adm-input" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                {formatPrice(Number(row.price))}
+                {shopifyUrl && <a href={shopifyUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "underline", fontSize: 12 }}>Edit in Shopify →</a>}
+              </div>
+            ) : (
+              <input className="adm-input" type="number" min={0} step="1" value={row.price}
+                onChange={(e) => set("price", Number(e.target.value))} />
+            )}
           </label>
           <label className="adm-field">
             <span>Status</span>
@@ -261,18 +280,57 @@ export function ProductEditor({ mode, initial, teams }: {
         )}
       </div>
 
+      {mode === "edit" && (
+        <div className="adm-section">
+          <div className="adm-section__hd">Shopify sync</div>
+          {row.shopify_product_id ? (
+            <p className="adm-hint">
+              Synced — price and stock are owned by Shopify from here on.{" "}
+              {shopifyUrl && <a href={shopifyUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>Open in Shopify →</a>}
+            </p>
+          ) : (
+            <>
+              <p className="adm-hint">
+                {row.shopify_sync_error
+                  ? `Last sync failed: ${row.shopify_sync_error}`
+                  : "Not yet on Shopify — price and stock below seed the product when you create it."}
+              </p>
+              <button type="button" className="adm-upload-btn" disabled={isPending} onClick={handleCreateInShopify}>
+                {isPending ? "Creating…" : "Create in Shopify"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="adm-section">
         <div className="adm-section__hd">Stock — units per size</div>
-        <p className="adm-hint">Quantities are managed manually (orders check out through the cart; nothing auto-decrements). 0 = size unavailable.</p>
-        <div className="adm-sizegrid">
-          {sizeSet.map((s) => (
-            <div key={s} className={`adm-sizegrid__cell${(row.sizes[s] ?? 0) <= 0 ? " is-out" : ""}`}>
-              <span>{s}</span>
-              <input type="number" min={0} step="1" value={row.sizes[s] ?? 0}
-                onChange={(e) => set("sizes", { ...row.sizes, [s]: Math.max(0, Number(e.target.value)) })} />
+        {isSynced ? (
+          <>
+            <p className="adm-hint">Managed in Shopify — this reflects the last webhook update.</p>
+            <div className="adm-sizegrid">
+              {sizeSet.map((s) => (
+                <div key={s} className={`adm-sizegrid__cell${(row.sizes[s] ?? 0) <= 0 ? " is-out" : ""}`}>
+                  <span>{s}</span>
+                  <span>{row.sizes[s] ?? 0}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <>
+            <p className="adm-hint">Quantities seed Shopify&rsquo;s opening inventory once this product is created there. 0 = size unavailable.</p>
+            <div className="adm-sizegrid">
+              {sizeSet.map((s) => (
+                <div key={s} className={`adm-sizegrid__cell${(row.sizes[s] ?? 0) <= 0 ? " is-out" : ""}`}>
+                  <span>{s}</span>
+                  <input type="number" min={0} step="1" value={row.sizes[s] ?? 0}
+                    onChange={(e) => set("sizes", { ...row.sizes, [s]: Math.max(0, Number(e.target.value)) })} />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {mode === "edit" ? (

@@ -1,5 +1,6 @@
 "use server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { syncProductToShopify } from "@/lib/shopify-sync";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { AdminProductRow } from "./types";
@@ -21,7 +22,12 @@ function revalidateProduct(slug: string) {
 
 const SLUG_RE = /^[a-z0-9-]+$/;
 
-/** Columns a client is allowed to write — everything else is server-owned. */
+/** Columns a client is allowed to write — everything else is server-owned.
+    price and sizes stay writable here (a brand-new product needs them set
+    before it can even be synced to Shopify the first time), but updateProduct
+    strips them from the patch once a product has a shopify_product_id —
+    from that point on Shopify owns those two and pushes changes in via the
+    webhook handler, so a stale admin form can no longer clobber or race it. */
 const WRITABLE = [
   "name", "team_id", "product_type", "kit_type", "season", "edition",
   "price", "status", "customizable", "sizes", "sort_order",
@@ -56,10 +62,25 @@ export async function updateProduct(
 ): Promise<{ ok: boolean; error?: string }> {
   const admin = createAdminClient();
   if (!admin) return noAdmin();
-  const { error } = await admin.from("products").update(pickWritable(input)).eq("slug", slug);
+  const { data: existing } = await admin.from("products").select("shopify_product_id").eq("slug", slug).maybeSingle();
+  const patch = pickWritable(input);
+  if (existing?.shopify_product_id) {
+    delete patch.price;
+    delete patch.sizes;
+  }
+  const { error } = await admin.from("products").update(patch).eq("slug", slug);
   if (error) return { ok: false, error: error.message };
   revalidateProduct(slug);
   return { ok: true };
+}
+
+/** Creates the Shopify counterpart for a product that doesn't have one yet —
+    seeds price/stock from whatever's currently in Supabase. A no-op if the
+    product is already synced (syncProductToShopify's own idempotency check). */
+export async function createInShopify(slug: string): Promise<{ ok: boolean; error?: string }> {
+  const result = await syncProductToShopify(slug);
+  revalidateProduct(slug);
+  return result;
 }
 
 export async function setProductPublished(

@@ -73,6 +73,7 @@ export function ProductsTable({ products, teamNames, initialType = "all" }: {
               <th>Price</th>
               <th>Stock</th>
               <th>Status</th>
+              <th>Shopify</th>
             </tr>
           </thead>
           <tbody>
@@ -103,6 +104,13 @@ export function ProductsTable({ products, teamNames, initialType = "all" }: {
                         : p.is_published
                           ? <span className="adm-pill is-good">Live</span>
                           : <span className="adm-pill is-warn">Draft</span>}
+                  </td>
+                  <td>
+                    {p.shopify_sync_error
+                      ? <span className="adm-pill is-bad" title={p.shopify_sync_error}>Sync failed</span>
+                      : p.shopify_product_id
+                        ? <span className="adm-pill is-good">Synced</span>
+                        : <span className="adm-pill is-muted">Not synced</span>}
                   </td>
                 </tr>
               );
