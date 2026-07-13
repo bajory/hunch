@@ -1,20 +1,26 @@
 "use client";
 
-import { useCart, type CartItem } from "./CartProvider";
-import type { CartAttribute } from "@/lib/shopify";
+import { useCart } from "./CartProvider";
+import type { CartAttribute, CartLine } from "@/lib/shopify";
 
 function attr(attributes: CartAttribute[], key: string): string {
   return attributes.find((a) => a.key === key)?.value ?? "";
 }
 
-function CartItemRow({ item }: { item: CartItem }) {
-  const team = attr(item.attributes, "Team") || attr(item.attributes, "Club");
-  const kitType = attr(item.attributes, "Kit Type");
-  const season = attr(item.attributes, "Season");
-  const size = attr(item.attributes, "Size");
-  const name = attr(item.attributes, "Name");
-  const number = attr(item.attributes, "Number");
-  const image = attr(item.attributes, "_Image");
+function CartItemRow({ line, onQuantityChange, onRemove }: {
+  line: CartLine;
+  onQuantityChange: (quantity: number) => void;
+  onRemove: () => void;
+}) {
+  const team = attr(line.attributes, "Team") || attr(line.attributes, "Club");
+  const kitType = attr(line.attributes, "Kit Type");
+  const season = attr(line.attributes, "Season");
+  const size = attr(line.attributes, "Size");
+  const name = attr(line.attributes, "Name");
+  const number = attr(line.attributes, "Number");
+  // Our own calibrated product photo takes priority over Shopify's generic
+  // variant image (which the catalog sync never sets — products live here).
+  const image = attr(line.attributes, "_Image") || line.image;
 
   return (
     <div className="cart__item">
@@ -25,20 +31,27 @@ function CartItemRow({ item }: { item: CartItem }) {
         </div>
       )}
       <div className="cart__item-body">
-        <span className="cart__item-name">{team}</span>
+        <span className="cart__item-name">{team || line.productTitle}</span>
         <span className="cart__item-attrs">
           {[kitType, season, size && `Size ${size}`].filter(Boolean).join(" · ")}
           {(name || number) && (
             <><br />{[name, number].filter(Boolean).join(" ")} · Personalised</>
           )}
         </span>
+        <div className="cart__item-qty">
+          <button onClick={() => onQuantityChange(line.quantity - 1)} aria-label="Decrease quantity" disabled={line.quantity <= 1}>−</button>
+          <span>{line.quantity}</span>
+          <button onClick={() => onQuantityChange(line.quantity + 1)} aria-label="Increase quantity">+</button>
+          <button className="cart__item-remove" onClick={onRemove} aria-label="Remove item">Remove</button>
+        </div>
       </div>
     </div>
   );
 }
 
 export function CartDrawer() {
-  const { items, count, drawerOpen, closeDrawer, checkoutUrl } = useCart();
+  const { cart, count, drawerOpen, closeDrawer, checkoutUrl, updateQuantity, removeItem } = useCart();
+  const lines = cart?.lines ?? [];
 
   return (
     <>
@@ -64,13 +77,20 @@ export function CartDrawer() {
         </div>
 
         <div className="cart__body">
-          {items.length === 0 ? (
+          {lines.length === 0 ? (
             <div className="cart__empty">
               <span className="microlabel">Nothing here yet</span>
               <p>Your bag is empty.</p>
             </div>
           ) : (
-            items.map((item) => <CartItemRow key={item.id} item={item} />)
+            lines.map((line) => (
+              <CartItemRow
+                key={line.id}
+                line={line}
+                onQuantityChange={(q) => { if (q >= 1) void updateQuantity(line.id, q); }}
+                onRemove={() => void removeItem(line.id)}
+              />
+            ))
           )}
         </div>
 
@@ -78,7 +98,7 @@ export function CartDrawer() {
           <button
             className="btn"
             style={{ width: "100%", justifyContent: "center" }}
-            disabled={!checkoutUrl && items.length === 0}
+            disabled={!checkoutUrl || lines.length === 0}
             onClick={() => { if (checkoutUrl) window.open(checkoutUrl, "_blank"); }}
           >
             Checkout

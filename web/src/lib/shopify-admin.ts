@@ -14,6 +14,7 @@ const DOMAIN = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN;
 const CLIENT_ID = process.env.SHOPIFY_ADMIN_CLIENT_ID;
 const CLIENT_SECRET = process.env.SHOPIFY_ADMIN_CLIENT_SECRET;
 const LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
+const HEADLESS_PUBLICATION_ID = process.env.SHOPIFY_HEADLESS_PUBLICATION_ID;
 const API_VERSION = "2025-01";
 
 export function isShopifyAdminConfigured(): boolean {
@@ -89,8 +90,11 @@ export interface CreatedShopifyProduct {
 
 /** Creates (or, if run again with the same handle, updates) a Shopify
     product with one variant per size, opening inventory set at
-    SHOPIFY_LOCATION_ID. Always DRAFT — this store's theme is never
-    published, so nothing here is ever publicly browsable on Shopify. */
+    SHOPIFY_LOCATION_ID. Status ACTIVE and published to the "Hunch Headless"
+    channel only — DRAFT products are invisible to the Storefront API
+    entirely (not just the theme), so ACTIVE is required for checkout to
+    work at all. Never published to "Online Store" — that theme stays
+    unused; this storefront is the only place these products are browsable. */
 export async function createShopifyProduct(input: {
   title: string;
   vendor?: string;
@@ -122,7 +126,7 @@ export async function createShopifyProduct(input: {
       title: input.title,
       vendor: input.vendor,
       productType: input.productType,
-      status: "DRAFT",
+      status: "ACTIVE",
       productOptions: [
         { name: "Size", values: input.variants.map((v) => ({ name: v.size })) },
       ],
@@ -159,7 +163,51 @@ export async function createShopifyProduct(input: {
     };
   });
 
+  await publishToHeadlessChannel(product.id);
+
   return { productId: product.id, variants };
+}
+
+/** Publishes a product to the "Hunch Headless" sales channel — required
+    separately from status: ACTIVE. A product can be ACTIVE and still be
+    invisible to the Storefront API if it isn't published to the channel
+    associated with that Storefront token. Never call this with the
+    "Online Store" publication id — that theme is meant to stay unused. */
+export async function publishToHeadlessChannel(productId: string): Promise<void> {
+  if (!HEADLESS_PUBLICATION_ID) throw new Error("SHOPIFY_HEADLESS_PUBLICATION_ID is not configured");
+
+  const query = `
+    mutation Publish($id: ID!, $input: [PublicationInput!]!) {
+      publishablePublish(id: $id, input: $input) {
+        userErrors { field message }
+      }
+    }`;
+  const d = await adminGraphQL<{ publishablePublish: { userErrors: { field: string[]; message: string }[] } }>(
+    query,
+    { id: productId, input: [{ publicationId: HEADLESS_PUBLICATION_ID }] },
+  );
+  const errs = d.publishablePublish.userErrors;
+  if (errs.length > 0) throw new Error(`publishablePublish failed: ${JSON.stringify(errs)}`);
+}
+
+/** One-off fix for products created before ACTIVE+publish was part of
+    createShopifyProduct — sets status ACTIVE and publishes to the
+    headless channel for a product that already exists in Shopify. */
+export async function activateAndPublishProduct(productId: string): Promise<void> {
+  const query = `
+    mutation ActivateProduct($product: ProductUpdateInput!) {
+      productUpdate(product: $product) {
+        userErrors { field message }
+      }
+    }`;
+  const d = await adminGraphQL<{ productUpdate: { userErrors: { field: string[]; message: string }[] } }>(
+    query,
+    { product: { id: productId, status: "ACTIVE" } },
+  );
+  if (d.productUpdate.userErrors.length > 0) {
+    throw new Error(`productUpdate failed: ${JSON.stringify(d.productUpdate.userErrors)}`);
+  }
+  await publishToHeadlessChannel(productId);
 }
 
 /** Resyncs on-hand quantity for one existing variant — used by the

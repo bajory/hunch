@@ -7,6 +7,11 @@
 
    Until NEXT_PUBLIC_SHOPIFY_* env vars are set, isShopifyConfigured() is false
    and the UI falls back to a local bag count (no network calls).
+
+   This is the public, client-safe Storefront token — cart/checkout only.
+   The private Admin API client (product/inventory writes) lives in
+   shopify-admin.ts, a separate server-only file; that boundary is the
+   security boundary between the two tokens, so they're never merged.
    ========================================================================= */
 
 const DOMAIN = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN;
@@ -18,7 +23,16 @@ export function isShopifyConfigured(): boolean {
 }
 
 export interface CartAttribute { key: string; value: string }
-export interface CartState { id: string; checkoutUrl: string; totalQuantity: number }
+export interface CartLine {
+  id: string;
+  quantity: number;
+  attributes: CartAttribute[];
+  merchandiseId: string;
+  productTitle: string;
+  variantTitle: string;
+  image: string | null;
+}
+export interface CartState { id: string; checkoutUrl: string; totalQuantity: number; lines: CartLine[] }
 
 async function storefront<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   if (!isShopifyConfigured()) throw new Error("Shopify is not configured");
@@ -35,13 +49,68 @@ async function storefront<T>(query: string, variables: Record<string, unknown> =
   return json.data as T;
 }
 
-const CART_FIELDS = `id checkoutUrl totalQuantity`;
+const CART_FIELDS = `
+  id checkoutUrl totalQuantity
+  lines(first: 50) {
+    nodes {
+      id
+      quantity
+      attributes { key value }
+      merchandise {
+        ... on ProductVariant {
+          id
+          title
+          image { url }
+          product { title }
+        }
+      }
+    }
+  }
+`;
+
+interface RawCartLineNode {
+  id: string;
+  quantity: number;
+  attributes: CartAttribute[];
+  merchandise: { id: string; title: string; image: { url: string } | null; product: { title: string } };
+}
+interface RawCart {
+  id: string;
+  checkoutUrl: string;
+  totalQuantity: number;
+  lines: { nodes: RawCartLineNode[] };
+}
+
+function toCartState(raw: RawCart): CartState {
+  return {
+    id: raw.id,
+    checkoutUrl: raw.checkoutUrl,
+    totalQuantity: raw.totalQuantity,
+    lines: raw.lines.nodes.map((n) => ({
+      id: n.id,
+      quantity: n.quantity,
+      attributes: n.attributes,
+      merchandiseId: n.merchandise.id,
+      productTitle: n.merchandise.product.title,
+      variantTitle: n.merchandise.title,
+      image: n.merchandise.image?.url ?? null,
+    })),
+  };
+}
 
 export async function createCart(): Promise<CartState> {
-  const d = await storefront<{ cartCreate: { cart: CartState } }>(
+  const d = await storefront<{ cartCreate: { cart: RawCart } }>(
     `mutation { cartCreate { cart { ${CART_FIELDS} } } }`
   );
-  return d.cartCreate.cart;
+  return toCartState(d.cartCreate.cart);
+}
+
+export async function getCart(cartId: string): Promise<CartState | null> {
+  const d = await storefront<{ cart: RawCart | null }>(
+    `query GetCart($cartId: ID!) { cart(id: $cartId) { ${CART_FIELDS} } }`,
+    { cartId },
+  );
+  return d.cart ? toCartState(d.cart) : null;
 }
 
 export async function addLine(
@@ -50,11 +119,31 @@ export async function addLine(
   attributes: CartAttribute[],
   quantity = 1,
 ): Promise<CartState> {
-  const d = await storefront<{ cartLinesAdd: { cart: CartState } }>(
+  const d = await storefront<{ cartLinesAdd: { cart: RawCart } }>(
     `mutation Add($cartId: ID!, $lines: [CartLineInput!]!) {
       cartLinesAdd(cartId: $cartId, lines: $lines) { cart { ${CART_FIELDS} } }
     }`,
     { cartId, lines: [{ merchandiseId, quantity, attributes }] },
   );
-  return d.cartLinesAdd.cart;
+  return toCartState(d.cartLinesAdd.cart);
+}
+
+export async function updateLineQuantity(cartId: string, lineId: string, quantity: number): Promise<CartState> {
+  const d = await storefront<{ cartLinesUpdate: { cart: RawCart } }>(
+    `mutation Update($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
+      cartLinesUpdate(cartId: $cartId, lines: $lines) { cart { ${CART_FIELDS} } }
+    }`,
+    { cartId, lines: [{ id: lineId, quantity }] },
+  );
+  return toCartState(d.cartLinesUpdate.cart);
+}
+
+export async function removeLine(cartId: string, lineId: string): Promise<CartState> {
+  const d = await storefront<{ cartLinesRemove: { cart: RawCart } }>(
+    `mutation Remove($cartId: ID!, $lineIds: [ID!]!) {
+      cartLinesRemove(cartId: $cartId, lineIds: $lineIds) { cart { ${CART_FIELDS} } }
+    }`,
+    { cartId, lineIds: [lineId] },
+  );
+  return toCartState(d.cartLinesRemove.cart);
 }

@@ -178,11 +178,20 @@ export function PdpClient({
     setNumber(String(roster[i]?.number ?? ""));
   }
 
-  function addToBag() {
+  function flashToast(message: string, ms = 2600) {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), ms);
+  }
+
+  async function addToBag() {
     if (!size) {
-      setToast("Select a size first");
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(() => setToast(null), 2200);
+      flashToast("Select a size first", 2200);
+      return;
+    }
+    const variant = active.sizeVariants?.[size];
+    if (!variant) {
+      flashToast("This size isn't available right now", 2200);
       return;
     }
     const attrs = [
@@ -201,11 +210,14 @@ export function PdpClient({
         { key: "Personalisation", value: `Yes (+${formatPrice(CUSTOMIZATION_FEE)})` },
       ] : []),
     ];
-    void addItem(attrs);
-    setToast(`${active.teamName || active.name} · ${size} added`);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2600);
-    setTimeout(() => openDrawer(), 420);
+    try {
+      await addItem(attrs, variant.variantId);
+      flashToast(`${active.teamName || active.name} · ${size} added`);
+      setTimeout(() => openDrawer(), 420);
+    } catch (e) {
+      console.error("addToBag failed:", e);
+      flashToast("Couldn't add to bag — please try again", 2600);
+    }
   }
 
   const galleryImg = view === "back" && backImg ? backImg : frontImg;

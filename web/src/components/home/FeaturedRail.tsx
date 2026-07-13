@@ -59,21 +59,34 @@ export function FeaturedRail({ products, printMap }: {
     return live?.front || p.images.front;
   }
 
-  function quickAdd(product: Product, size: string) {
-    void addItem([
-      { key: "Product", value: product.name },
-      { key: "Type", value: productTypeDef(product.productType).label },
-      ...(product.teamName ? [{ key: "Team", value: product.teamName }] : []),
-      ...(product.kitType ? [{ key: "Kit Type", value: KIT_TYPE_LABELS[product.kitType] }] : []),
-      ...(product.season ? [{ key: "Season", value: product.season }] : []),
-      { key: "Size", value: size },
-      { key: "_Image", value: liveFront(product) },
-    ]);
-    setPickerFor(null);
-    setToast(`${product.teamName} · ${size} added`);
+  function flashToast(message: string) {
+    setToast(message);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2600);
-    setTimeout(() => openDrawer(), 420);
+  }
+
+  async function quickAdd(product: Product, size: string) {
+    const variant = product.sizeVariants?.[size];
+    if (!variant) {
+      flashToast("This size isn't available right now");
+      return;
+    }
+    try {
+      await addItem([
+        { key: "Product", value: product.name },
+        { key: "Type", value: productTypeDef(product.productType).label },
+        ...(product.teamName ? [{ key: "Team", value: product.teamName }] : []),
+        ...(product.kitType ? [{ key: "Kit Type", value: KIT_TYPE_LABELS[product.kitType] }] : []),
+        ...(product.season ? [{ key: "Season", value: product.season }] : []),
+        { key: "Size", value: size },
+        { key: "_Image", value: liveFront(product) },
+      ], variant.variantId);
+      setPickerFor(null);
+      flashToast(`${product.teamName} · ${size} added`);
+      setTimeout(() => openDrawer(), 420);
+    } catch {
+      flashToast("Couldn't add to bag — please try again");
+    }
   }
 
   return (
