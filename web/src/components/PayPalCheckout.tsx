@@ -326,7 +326,14 @@ export function PayPalCheckout() {
       }
       const btn = applePayBtnRef.current;
       btn.removeAttribute("hidden");
-      setApplePayDebug((d) => `${d} | button unhidden`);
+      setTimeout(() => {
+        const rect = btn.getBoundingClientRect();
+        const hasShadow = Boolean(btn.shadowRoot);
+        const shadowChildren = btn.shadowRoot?.childElementCount ?? "n/a";
+        const lightChildren = btn.childElementCount;
+        const computed = window.getComputedStyle(btn);
+        setApplePayDebug((d) => `${d} | unhidden, rect=${Math.round(rect.width)}x${Math.round(rect.height)} display=${computed.display} hasShadowRoot=${hasShadow} shadowChildren=${shadowChildren} lightChildren=${lightChildren}`);
+      }, 500);
       const onClick = async () => {
         setStatus("processing");
         try {
