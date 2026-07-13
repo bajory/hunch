@@ -1826,12 +1826,21 @@ paypal-button { display: block; width: 100%; height: 44px; }
 /* Google's own createButton() sizes itself via buttonSizeMode: "fill" —
    needs an explicit-height container to fill, matching the other buttons. */
 .paypal-checkout__googlepay { width: 100%; height: 44px; }
-/* Google's button ships its own `position: sticky` (meant for a scrolling
-   mini-cart drawer) — on this full page that stickiness has nothing to
-   pin against and the button ends up overlapping content below it.
-   Forced back to static regardless of what pageType the SDK is given. */
+/* Google's button ships its own `position: sticky; top: 100px` (a mini-cart
+   drawer offset, presumably to clear a fixed drawer header — confirmed via
+   direct computed-style inspection). `relative`, not `static`: sticky and
+   relative both establish a containing block for the button's own
+   absolutely-positioned internal logo — static does not, so a first attempt
+   at only this part of the fix (static) made things worse, letting the logo
+   escape to the page's root containing block and render oversized,
+   floating over the card fields. But relative still honors `top`, which
+   sibling layout doesn't account for — the button was still painting
+   100px below its actual flow slot, overlapping content below it. The
+   offset itself has to be canceled too. */
 .paypal-checkout__googlepay .gpay-button, .paypal-checkout__googlepay button {
-  position: static !important;
+  position: relative !important;
+  top: 0 !important;
+  bottom: 0 !important;
 }
 .paypal-checkout__divider {
   display: flex;
