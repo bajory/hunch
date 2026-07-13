@@ -34,6 +34,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DetailedHTMLProps, HTMLAttributes } from "react";
 import { useCart } from "./CartProvider";
+import type { CartLine } from "@/lib/shopify";
 
 // PayPal's v6 SDK renders <paypal-button> itself as a custom element (real
 // shadow-DOM content, confirmed working) — declare it so JSX accepts it as
@@ -165,6 +166,16 @@ export interface ShippingAddress {
   postalCode?: string;
 }
 
+/** Snapshot of what was actually bought, captured the instant an order is
+    captured — passed to onPaymentSuccess instead of letting the caller
+    read `cart` itself, since clearCart() (called right before) empties it. */
+export interface CompletedOrder {
+  orderId: string;
+  lines: CartLine[];
+  amount: string;
+  email: string;
+}
+
 async function createOrderOnServer(cartId: string, email: string, shippingAddress: ShippingAddress): Promise<{ orderId: string }> {
   const res = await fetch("/api/paypal/orders/create", {
     method: "POST",
@@ -199,8 +210,18 @@ function reportClientError(context: string, e: unknown): void {
   }).catch(() => {});
 }
 
-export function PayPalCheckout({ email, shippingAddress }: { email: string; shippingAddress: ShippingAddress | null }) {
-  const { cart, clearCart, closeDrawer } = useCart();
+export function PayPalCheckout({ email, shippingAddress, onPaymentSuccess }: {
+  email: string;
+  shippingAddress: ShippingAddress | null;
+  /** Called once an order is actually captured — CheckoutClient.tsx swaps
+      in a full confirmation view. This component no longer lives inside
+      the cart drawer (closeDrawer() here was dead leftover behavior from
+      when it did — a buyer landing on the dedicated checkout page never
+      saw more than a small inline "Payment received" banner buried in the
+      Payment section, with no clear indication the order was placed). */
+  onPaymentSuccess?: (order: CompletedOrder) => void;
+}) {
+  const { cart, clearCart } = useCart();
   const [instance, setInstance] = useState<PayPalSdkInstance | null>(null);
   const [eligible, setEligible] = useState<EligibleMethods | null>(null);
   const [status, setStatus] = useState<"idle" | "processing" | "done" | "error">("idle");
@@ -253,13 +274,17 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
     return () => { cancelled = true; };
   }, [cartId]);
 
-  async function onOrderApproved(orderId: string) {
+  async function onOrderApproved(orderId: string, buyerEmail: string = email) {
     setStatus("processing");
     try {
       await captureOnServer(orderId);
+      // Snapshot before clearCart() empties `cart` out from under us.
+      const completed: CompletedOrder | null = cart
+        ? { orderId, lines: cart.lines, amount: cart.amount, email: buyerEmail }
+        : null;
       clearCart();
       setStatus("done");
-      setTimeout(closeDrawer, 1500);
+      if (completed) onPaymentSuccess?.(completed);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus("error");
@@ -370,7 +395,7 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
           if (!buyerEmail) throw new Error("No email available from Google Pay");
           const { orderId } = await createOrderOnServer(cartId, buyerEmail, shipping);
           await session.confirmOrder({ orderId, paymentMethodData: paymentData.paymentMethodData });
-          await onOrderApproved(orderId);
+          await onOrderApproved(orderId, buyerEmail);
         } catch (e) {
           setError(e instanceof Error ? e.message : String(e));
           setStatus("error");
@@ -479,10 +504,13 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
               const { orderId } = await createOrderOnServer(cartId, buyerEmail, shipping);
               await bridge.confirmOrder({ orderId, token: event.payment.token });
               await captureOnServer(orderId);
+              const completed: CompletedOrder | null = cart
+                ? { orderId, lines: cart.lines, amount: cart.amount, email: buyerEmail }
+                : null;
               session.completePayment(ApplePaySessionCtor.STATUS_SUCCESS);
               clearCart();
               setStatus("done");
-              setTimeout(closeDrawer, 1500);
+              if (completed) onPaymentSuccess?.(completed);
             } catch (e) {
               reportClientError("applepay.onpaymentauthorized", e);
               session.completePayment(ApplePaySessionCtor.STATUS_FAILURE);

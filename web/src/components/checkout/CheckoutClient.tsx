@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
-import { PayPalCheckout, type ShippingAddress } from "@/components/PayPalCheckout";
+import { PayPalCheckout, type ShippingAddress, type CompletedOrder } from "@/components/PayPalCheckout";
 import { formatPrice } from "@/lib/products";
 import type { CartAttribute, CartLine } from "@/lib/shopify";
 
@@ -63,6 +63,7 @@ export function CheckoutClient() {
   const [countryCode, setCountryCode] = useState("QA");
   const [postalCode, setPostalCode] = useState("");
   const [phone, setPhone] = useState("");
+  const [completedOrder, setCompletedOrder] = useState<CompletedOrder | null>(null);
 
   const shippingAddress: ShippingAddress | null =
     fullName && addressLine1 && city && countryCode
@@ -70,6 +71,30 @@ export function CheckoutClient() {
       : null;
 
   const lines = cart?.lines ?? [];
+
+  if (completedOrder) {
+    return (
+      <div className="wrap checkout">
+        <div className="checkout__confirm">
+          <span className="microlabel">Order confirmed</span>
+          <h1 className="checkout__title">Thank you</h1>
+          <p className="checkout__confirm-lede">
+            Your payment went through and the order is being prepared. A confirmation
+            has been sent to <b>{completedOrder.email}</b>.
+          </p>
+          <p className="checkout__confirm-ref">Order reference <b>{completedOrder.orderId}</b></p>
+          <div className="checkout__lines">
+            {completedOrder.lines.map((line) => <CheckoutLineRow key={line.id} line={line} />)}
+          </div>
+          <div className="checkout__totalrow">
+            <span>Total</span>
+            <b>{formatPrice(Number(completedOrder.amount))}</b>
+          </div>
+          <Link href="/shop" className="btn btn--ink">Continue shopping</Link>
+        </div>
+      </div>
+    );
+  }
 
   if (lines.length === 0) {
     return (
@@ -98,7 +123,7 @@ export function CheckoutClient() {
           </section>
 
           <section className="checkout__section">
-            <PayPalCheckout email={email} shippingAddress={shippingAddress} />
+            <PayPalCheckout email={email} shippingAddress={shippingAddress} onPaymentSuccess={setCompletedOrder} />
           </section>
 
           <section className="checkout__section">

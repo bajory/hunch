@@ -2021,6 +2021,25 @@ paypal-button { display: block; width: 100%; height: 44px; }
   color: var(--bone-faint);
 }
 
+.checkout__confirm {
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.checkout__confirm .checkout__title { margin-top: 10px; margin-bottom: 0; }
+.checkout__confirm-lede { color: var(--bone-dim); line-height: 1.6; }
+.checkout__confirm-lede b, .checkout__confirm-ref b { color: var(--bone); }
+.checkout__confirm-ref { font-size: var(--t-small); color: var(--bone-faint); letter-spacing: 0.02em; }
+.checkout__confirm .checkout__lines {
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  padding: 20px 0;
+}
+.checkout__confirm .checkout__totalrow { border-top: none; padding-top: 0; }
+.checkout__confirm .btn { align-self: flex-start; margin-top: 8px; }
+
 @media (max-width: 860px) {
   .checkout__grid { grid-template-columns: minmax(0, 1fr); }
   .checkout__summary { position: static; order: -1; }
