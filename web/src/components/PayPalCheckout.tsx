@@ -147,7 +147,6 @@ export function PayPalCheckout() {
   const cardNumberRef = useRef<HTMLDivElement>(null);
   const cardExpiryRef = useRef<HTMLDivElement>(null);
   const cardCvvRef = useRef<HTMLDivElement>(null);
-  const cardNameRef = useRef<HTMLDivElement>(null);
   const googlePayBtnRef = useRef<HTMLDivElement>(null);
   const applePayBtnRef = useRef<HTMLElement>(null);
 
@@ -209,18 +208,18 @@ export function PayPalCheckout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance, eligible, cartId]);
 
-  // Card fields
+  // Card fields — only number/expiry/cvv are valid createCardFieldsComponent
+  // types; cardholder name isn't a PayPal-hosted field (not PCI-sensitive),
+  // so it's a plain input the capture route doesn't need to see at all.
   useEffect(() => {
-    if (!instance || !eligible?.isEligible("card") || !cardNumberRef.current) return;
+    if (!instance || !eligible?.isEligible("advanced_cards") || !cardNumberRef.current) return;
     const session = instance.createCardFieldsOneTimePaymentSession();
     const number = session.createCardFieldsComponent({ type: "number", placeholder: "Card number" });
     const expiry = session.createCardFieldsComponent({ type: "expiry", placeholder: "MM/YY" });
     const cvv = session.createCardFieldsComponent({ type: "cvv", placeholder: "CVV" });
-    const name = session.createCardFieldsComponent({ type: "name", placeholder: "Name on card" });
     cardNumberRef.current.appendChild(number);
     cardExpiryRef.current?.appendChild(expiry);
     cardCvvRef.current?.appendChild(cvv);
-    cardNameRef.current?.appendChild(name);
     (cardNumberRef.current as HTMLDivElement & { __session?: CardFieldsSession }).__session = session;
   }, [instance, eligible]);
 
@@ -265,7 +264,19 @@ export function PayPalCheckout() {
         setStatus("processing");
         try {
           const { orderId } = await createOrderOnServer(cartId);
-          const paymentData = await client.loadPaymentData(config);
+          // formatConfigForPaymentRequest doesn't include transactionInfo —
+          // Google's loadPaymentData rejects the request without it. Only
+          // used for the Google Pay sheet's own display; the real charge is
+          // always computed server-side in the create-order route above.
+          const paymentData = await client.loadPaymentData({
+            ...config,
+            transactionInfo: {
+              totalPriceStatus: "FINAL",
+              totalPrice: (Number(cart?.amount ?? 0) / QAR_PER_USD).toFixed(2),
+              currencyCode: "USD",
+              countryCode: "US",
+            },
+          });
           await session.confirmOrder({ orderId, paymentMethodData: paymentData.paymentMethodData });
           await onOrderApproved(orderId);
         } catch (e) {
@@ -277,7 +288,7 @@ export function PayPalCheckout() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instance, eligible, cartId]);
+  }, [instance, eligible, cartId, cart?.amount]);
 
   // Apple Pay — only renders where window.ApplePaySession exists (Safari).
   useEffect(() => {
@@ -343,14 +354,13 @@ export function PayPalCheckout() {
 
       {eligible?.isEligible("applepay") && <apple-pay-button ref={applePayBtnRef} hidden buttonstyle="black" type="buy" />}
 
-      {eligible?.isEligible("card") && (
+      {eligible?.isEligible("advanced_cards") && (
         <div className="paypal-checkout__cardfields">
           <div ref={cardNumberRef} className="paypal-checkout__field" />
           <div className="paypal-checkout__row">
             <div ref={cardExpiryRef} className="paypal-checkout__field" />
             <div ref={cardCvvRef} className="paypal-checkout__field" />
           </div>
-          <div ref={cardNameRef} className="paypal-checkout__field" />
           <button type="button" className="btn btn--line" style={{ width: "100%", justifyContent: "center" }}
             disabled={status === "processing"} onClick={submitCardFields}>
             {status === "processing" ? "Processing…" : "Pay with card"}
