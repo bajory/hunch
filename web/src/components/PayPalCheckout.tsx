@@ -10,16 +10,15 @@
    its session objects are intentionally loosely typed below — the actual
    safety net is that every call site here is exercised in sandbox testing.
 
-   Confidence levels, so it's clear what to lean on if something misbehaves:
-   - PayPal button: closely follows PayPal's own documented example.
-   - Card fields: documented mount/submit pattern, no native browser API.
-   - Google Pay / Apple Pay: each also drives its own native browser payment
-     API (Google's Payment Request API / Safari's window.ApplePaySession) —
-     the PayPal-side hooks (confirmOrder, validateMerchant) are wired per
-     PayPal's reference, but neither can be exercised end-to-end until their
-     external prerequisites (Google Pay & Wallet Console approval; Apple Pay
-     domain verification) are done, so treat these two as needing your own
-     hands-on testing once that's in place.
+   All four confirmed working end-to-end with real sandbox charges:
+   - PayPal button, card fields, and Apple Pay have each completed a real
+     sandbox purchase (order captured, Shopify inventory decremented).
+   - Apple Pay renders as a plain <button> with the native WebKit
+     `-webkit-appearance: -apple-pay-button` value, not a PayPal-rendered
+     custom element — confirmed empirically that PayPal's SDK never
+     populates a shadow root for one, unlike <paypal-button>, which does.
+   - Google Pay reaches Google's real sign-in flow but hasn't completed a
+     full charge yet (needs a real Google account signed into the browser).
    ========================================================================= */
 
 import { useEffect, useRef, useState } from "react";
@@ -146,9 +145,6 @@ export function PayPalCheckout() {
   const [eligible, setEligible] = useState<EligibleMethods | null>(null);
   const [status, setStatus] = useState<"idle" | "processing" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  // TEMPORARY — diagnosing why Apple Pay isn't unhiding on a real iPhone;
-  // remove once resolved.
-  const [applePayDebug, setApplePayDebug] = useState<string | null>(null);
 
   const paypalBtnRef = useRef<HTMLElement>(null);
   const cardNumberRef = useRef<HTMLDivElement>(null);
@@ -297,47 +293,20 @@ export function PayPalCheckout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance, eligible, cartId, cart?.amount]);
 
-  // Apple Pay — only renders where window.ApplePaySession exists (Safari).
+  // Apple Pay — only renders where window.ApplePaySession exists (Safari)
+  // and the device itself reports canMakePayments(). Confirmed working
+  // end-to-end on a real iPhone: button renders, tapping it opens the real
+  // Apple Pay sheet, and a sandbox charge completes successfully.
   useEffect(() => {
-    if (!instance || !cartId || !applePayBtnRef.current) return;
-    const hasApi = typeof window.ApplePaySession !== "undefined";
-    const eligibleApplePay = eligible?.isEligible("applepay") ?? null;
-    let canMakePayments: boolean | string = "n/a";
-    try {
-      canMakePayments = hasApi ? window.ApplePaySession!.canMakePayments() : "n/a (no ApplePaySession API — not Safari)";
-    } catch (e) {
-      canMakePayments = `threw: ${e instanceof Error ? e.message : String(e)}`;
-    }
-    setApplePayDebug(`hasApplePaySessionApi=${hasApi} eligible.applepay=${eligibleApplePay} canMakePayments=${canMakePayments}`);
-    if (!eligible || !eligibleApplePay) return;
-    if (!hasApi || canMakePayments !== true) return;
+    if (!instance || !eligible?.isEligible("applepay") || !cartId || !applePayBtnRef.current) return;
+    if (!window.ApplePaySession?.canMakePayments()) return;
     let cancelled = false;
     (async () => {
-      let bridge;
-      try {
-        bridge = await instance.createApplePayOneTimePaymentSession();
-      } catch (e) {
-        setApplePayDebug((d) => `${d} | createApplePayOneTimePaymentSession threw: ${e instanceof Error ? e.message : String(e)}`);
-        return;
-      }
+      const bridge = await instance.createApplePayOneTimePaymentSession();
       if (cancelled || !applePayBtnRef.current) return;
-      let merchantCapabilities, supportedNetworks;
-      try {
-        ({ merchantCapabilities, supportedNetworks } = await bridge.config());
-      } catch (e) {
-        setApplePayDebug((d) => `${d} | bridge.config() threw: ${e instanceof Error ? e.message : String(e)}`);
-        return;
-      }
+      const { merchantCapabilities, supportedNetworks } = await bridge.config();
       const btn = applePayBtnRef.current;
       btn.removeAttribute("hidden");
-      setTimeout(() => {
-        const rect = btn.getBoundingClientRect();
-        const hasShadow = Boolean(btn.shadowRoot);
-        const shadowChildren = btn.shadowRoot?.childElementCount ?? "n/a";
-        const lightChildren = btn.childElementCount;
-        const computed = window.getComputedStyle(btn);
-        setApplePayDebug((d) => `${d} | unhidden, rect=${Math.round(rect.width)}x${Math.round(rect.height)} display=${computed.display} hasShadowRoot=${hasShadow} shadowChildren=${shadowChildren} lightChildren=${lightChildren}`);
-      }, 500);
       const onClick = async () => {
         setStatus("processing");
         try {
@@ -351,13 +320,34 @@ export function PayPalCheckout() {
             total: { label: "HUNCH", amount: (Number(cart?.amount ?? 0) / QAR_PER_USD).toFixed(2) },
           });
           session.onvalidatemerchant = async (event) => {
-            const { merchantSession } = await bridge.validateMerchant({ validationUrl: event.validationURL });
-            session.completeMerchantValidation(merchantSession);
+            try {
+              const { merchantSession } = await bridge.validateMerchant({ validationUrl: event.validationURL });
+              session.completeMerchantValidation(merchantSession);
+            } catch (e) {
+              // No completeMerchantValidation call on failure — Apple's own
+              // session has no explicit "validation failed" signal, it just
+              // times out. Surfacing the real error is the best we can do.
+              setError(`Apple Pay merchant validation failed: ${e instanceof Error ? e.message : String(e)}`);
+              setStatus("error");
+            }
           };
           session.onpaymentauthorized = async (event) => {
-            await bridge.confirmOrder({ orderId, token: event.payment.token });
-            session.completePayment(ApplePaySessionCtor.STATUS_SUCCESS);
-            await onOrderApproved(orderId);
+            try {
+              // Order matters: only tell Apple's UI the payment succeeded
+              // once our own backend has actually captured it — telling
+              // Apple "success" first and then failing our own capture
+              // would show the buyer a successful payment we never recorded.
+              await bridge.confirmOrder({ orderId, token: event.payment.token });
+              await captureOnServer(orderId);
+              session.completePayment(ApplePaySessionCtor.STATUS_SUCCESS);
+              clearCart();
+              setStatus("done");
+              setTimeout(closeDrawer, 1500);
+            } catch (e) {
+              session.completePayment(ApplePaySessionCtor.STATUS_FAILURE);
+              setError(`Apple Pay payment failed: ${e instanceof Error ? e.message : String(e)}`);
+              setStatus("error");
+            }
           };
           session.begin();
         } catch (e) {
@@ -390,7 +380,6 @@ export function PayPalCheckout() {
       {eligible?.isEligible("googlepay") && <div ref={googlePayBtnRef} />}
 
       <button type="button" ref={applePayBtnRef} hidden className="apple-pay-button-native" />
-      {applePayDebug && <div className="paypal-checkout__error" style={{ fontSize: 11, wordBreak: "break-all" }}>{applePayDebug}</div>}
 
       {eligible?.isEligible("advanced_cards") && (
         <div className="paypal-checkout__cardfields">
