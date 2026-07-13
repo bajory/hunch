@@ -261,7 +261,12 @@ export function PayPalCheckout({ email, shippingAddress, onPaymentSuccess }: {
         const sdkInstance = await window.paypal.createInstance({
           clientId: CLIENT_ID,
           components: ["paypal-payments", "googlepay-payments", "applepay-payments", "card-fields"],
-          pageType: "mini-cart",
+          // "checkout" — this component used to live in the cart drawer
+          // ("mini-cart"), which is why Google Pay's own button renders
+          // itself with position: sticky (appropriate for a scrolling
+          // drawer), overlapping the card fields below it on this full
+          // page. Left over from the move to a dedicated /checkout page.
+          pageType: "checkout",
         });
         if (cancelled) return;
         setInstance(sdkInstance);

@@ -1826,6 +1826,13 @@ paypal-button { display: block; width: 100%; height: 44px; }
 /* Google's own createButton() sizes itself via buttonSizeMode: "fill" —
    needs an explicit-height container to fill, matching the other buttons. */
 .paypal-checkout__googlepay { width: 100%; height: 44px; }
+/* Google's button ships its own `position: sticky` (meant for a scrolling
+   mini-cart drawer) — on this full page that stickiness has nothing to
+   pin against and the button ends up overlapping content below it.
+   Forced back to static regardless of what pageType the SDK is given. */
+.paypal-checkout__googlepay .gpay-button, .paypal-checkout__googlepay button {
+  position: static !important;
+}
 .paypal-checkout__divider {
   display: flex;
   align-items: center;
