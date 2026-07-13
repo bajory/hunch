@@ -99,7 +99,7 @@ export function CartDrawer() {
             className="btn"
             style={{ width: "100%", justifyContent: "center" }}
             disabled={!checkoutUrl || lines.length === 0}
-            onClick={() => { if (checkoutUrl) window.open(checkoutUrl, "_blank"); }}
+            onClick={() => { if (checkoutUrl) window.location.href = checkoutUrl; }}
           >
             Checkout
           </button>
