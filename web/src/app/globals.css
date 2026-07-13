@@ -1818,6 +1818,9 @@ body:has(.house__hero) .nav:not(.is-solid) {
 /* ── Direct PayPal checkout (shortcut alongside Shopify checkout) ───────── */
 
 .paypal-checkout { display: flex; flex-direction: column; gap: 10px; }
+/* Google's own createButton() sizes itself via buttonSizeMode: "fill" —
+   needs an explicit-height container to fill, matching the other buttons. */
+.paypal-checkout__googlepay { width: 100%; height: 44px; }
 .paypal-checkout__divider {
   display: flex;
   align-items: center;

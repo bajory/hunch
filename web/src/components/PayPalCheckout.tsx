@@ -104,6 +104,9 @@ interface GooglePayAddress {
 interface GooglePaymentsClient {
   isReadyToPay(request: unknown): Promise<{ result: boolean }>;
   loadPaymentData(request: unknown): Promise<{ paymentMethodData: unknown; email?: string; shippingAddress?: GooglePayAddress }>;
+  /** Official branded button per Google Pay's own brand guidelines — a
+      hand-rolled <button> with plain text isn't an acceptable substitute. */
+  createButton(options: { onClick: () => void; buttonColor?: string; buttonType?: string; buttonSizeMode?: string; buttonRadius?: number }): HTMLElement;
 }
 interface ApplePaySessionCtor {
   new (version: number, request: unknown): NativeApplePaySession;
@@ -317,11 +320,7 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
       const client = new window.google.payments.api.PaymentsClient({ environment: PAYPAL_ENV === "live" ? "PRODUCTION" : "TEST" });
       const container = googlePayBtnRef.current;
       container.innerHTML = "";
-      const button = document.createElement("button");
-      button.className = "btn btn--line";
-      button.type = "button";
-      button.textContent = "Google Pay";
-      button.onclick = async () => {
+      const onClick = async () => {
         setStatus("processing");
         try {
           // formatConfigForPaymentRequest doesn't include transactionInfo —
@@ -359,6 +358,7 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
           setStatus("error");
         }
       };
+      const button = client.createButton({ onClick, buttonColor: "black", buttonType: "buy", buttonSizeMode: "fill" });
       container.appendChild(button);
     })();
     return () => { cancelled = true; };
@@ -462,7 +462,7 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
 
       {eligible?.isEligible("paypal") && <paypal-button ref={paypalBtnRef} hidden type="pay" />}
 
-      {eligible?.isEligible("googlepay") && <div ref={googlePayBtnRef} />}
+      {eligible?.isEligible("googlepay") && <div ref={googlePayBtnRef} className="paypal-checkout__googlepay" />}
 
       <button type="button" ref={applePayBtnRef} hidden className="apple-pay-button-native" />
 
