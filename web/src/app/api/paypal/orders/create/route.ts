@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCart } from "@/lib/shopify";
-import { createPayPalOrder, isPayPalConfigured } from "@/lib/paypal";
+import { createPayPalOrder, isPayPalConfigured, type ShippingAddress } from "@/lib/paypal";
 import { createAdminClient } from "@/lib/supabase-admin";
+
+function isValidShipping(s: unknown): s is ShippingAddress {
+  if (!s || typeof s !== "object") return false;
+  const r = s as Record<string, unknown>;
+  return Boolean(r.fullName && r.addressLine1 && r.city && r.countryCode);
+}
 
 // QAR has been pegged to USD at this exact rate by Qatari law since 2001 —
 // a fixed multiply, not a live FX lookup (verified during planning).
@@ -22,8 +28,14 @@ export async function POST(req: NextRequest) {
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "Supabase admin client not configured" }, { status: 500 });
 
-  const { cartId } = await req.json();
+  const { cartId, email, shippingAddress } = await req.json();
   if (!cartId) return NextResponse.json({ error: "Missing cartId" }, { status: 400 });
+  if (!email || typeof email !== "string" || !email.includes("@")) {
+    return NextResponse.json({ error: "A valid email is required" }, { status: 400 });
+  }
+  if (!isValidShipping(shippingAddress)) {
+    return NextResponse.json({ error: "A complete shipping address is required" }, { status: 400 });
+  }
 
   const cart = await getCart(cartId);
   if (!cart || cart.lines.length === 0) {
@@ -60,6 +72,7 @@ export async function POST(req: NextRequest) {
       amountUsd,
       lineItems.map((l) => ({ name: `${l.title} (${l.size})`, quantity: l.quantity, unitAmountUsd: l.unitPriceUsd })),
       cartId,
+      { email, shipping: shippingAddress },
     );
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
@@ -71,6 +84,9 @@ export async function POST(req: NextRequest) {
     amount_usd: amountUsd,
     amount_qar: amountQar,
     line_items: lineItems,
+    customer_email: email,
+    customer_name: shippingAddress.fullName,
+    shipping_address: shippingAddress,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

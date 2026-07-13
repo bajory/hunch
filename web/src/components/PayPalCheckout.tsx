@@ -1,10 +1,17 @@
 "use client";
 
 /* =========================================================================
-   Direct PayPal checkout — a shortcut alongside the Shopify "Checkout"
-   button in the cart drawer, not a replacement for it. Renders whichever of
-   PayPal / Google Pay / Apple Pay / card fields the buyer is actually
-   eligible for, via the PayPal JS SDK v6.
+   Direct PayPal checkout — lives on the dedicated /checkout page (a
+   shortcut alongside the Shopify "Checkout" button in the cart drawer, not
+   a replacement for it). Renders whichever of PayPal / Google Pay / Apple
+   Pay / card fields the buyer is actually eligible for, via the PayPal JS
+   SDK v6. Takes the contact email + shipping address already collected by
+   CheckoutClient.tsx as props — every payment method's click handler
+   refuses to call createOrderOnServer until both are present, since none
+   of these payment flows can be trusted to collect a real shipping address
+   on their own (confirmed: card fields never can; Apple/Google Pay sheets
+   aren't asked to; the PayPal button would otherwise ask the buyer to pick
+   their own saved PayPal address instead of using this order's address).
 
    The v6 SDK ships no published TypeScript types, so `window.paypal` and
    its session objects are intentionally loosely typed below — the actual
@@ -118,11 +125,19 @@ function loadPayPalSdk(): Promise<void> {
   return sdkScriptPromise;
 }
 
-async function createOrderOnServer(cartId: string): Promise<{ orderId: string }> {
+export interface ShippingAddress {
+  fullName: string;
+  addressLine1: string;
+  city: string;
+  countryCode: string;
+  postalCode?: string;
+}
+
+async function createOrderOnServer(cartId: string, email: string, shippingAddress: ShippingAddress): Promise<{ orderId: string }> {
   const res = await fetch("/api/paypal/orders/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cartId }),
+    body: JSON.stringify({ cartId, email, shippingAddress }),
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? "Failed to create order");
@@ -139,12 +154,26 @@ async function captureOnServer(orderId: string): Promise<void> {
   if (!res.ok) throw new Error(json.error ?? "Failed to capture order");
 }
 
-export function PayPalCheckout() {
+export function PayPalCheckout({ email, shippingAddress }: { email: string; shippingAddress: ShippingAddress | null }) {
   const { cart, clearCart, closeDrawer } = useCart();
   const [instance, setInstance] = useState<PayPalSdkInstance | null>(null);
   const [eligible, setEligible] = useState<EligibleMethods | null>(null);
   const [status, setStatus] = useState<"idle" | "processing" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  const isFormValid = Boolean(
+    email && email.includes("@") &&
+    shippingAddress?.fullName && shippingAddress.addressLine1 && shippingAddress.city && shippingAddress.countryCode,
+  );
+  // Every payment method's click handler calls this first — returns false
+  // (and surfaces a message) rather than ever calling createOrderOnServer
+  // with an incomplete contact/shipping form.
+  function requireValidForm(): boolean {
+    if (isFormValid) return true;
+    setError("Please complete your contact and shipping details above before paying.");
+    setStatus("error");
+    return false;
+  }
 
   const paypalBtnRef = useRef<HTMLElement>(null);
   const cardNumberRef = useRef<HTMLDivElement>(null);
@@ -203,13 +232,14 @@ export function PayPalCheckout() {
     const btn = paypalBtnRef.current;
     btn.removeAttribute("hidden");
     const onClick = () => {
+      if (!requireValidForm() || !shippingAddress) return;
       setStatus("processing");
-      void session.start({ presentationMode: "auto" }, createOrderOnServer(cartId));
+      void session.start({ presentationMode: "auto" }, createOrderOnServer(cartId, email, shippingAddress));
     };
     btn.addEventListener("click", onClick);
     return () => btn.removeEventListener("click", onClick);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instance, eligible, cartId]);
+  }, [instance, eligible, cartId, email, shippingAddress]);
 
   // Card fields — only number/expiry/cvv are valid createCardFieldsComponent
   // types; cardholder name isn't a PayPal-hosted field (not PCI-sensitive),
@@ -227,12 +257,13 @@ export function PayPalCheckout() {
   }, [instance, eligible]);
 
   async function submitCardFields() {
-    if (!instance || !cartId) return;
+    if (!instance || !cartId || !shippingAddress) return;
     const session = (cardNumberRef.current as (HTMLDivElement & { __session?: CardFieldsSession }) | null)?.__session;
     if (!session) return;
+    if (!requireValidForm()) return;
     setStatus("processing");
     try {
-      const { orderId } = await createOrderOnServer(cartId);
+      const { orderId } = await createOrderOnServer(cartId, email, shippingAddress);
       const result = await session.submit(orderId);
       if (result.state === "succeeded" || result.state === "canceled" || result.state === "failed") {
         if (result.state === "failed") throw new Error("Card payment failed");
@@ -264,9 +295,10 @@ export function PayPalCheckout() {
       button.type = "button";
       button.textContent = "Google Pay";
       button.onclick = async () => {
+        if (!requireValidForm() || !shippingAddress) return;
         setStatus("processing");
         try {
-          const { orderId } = await createOrderOnServer(cartId);
+          const { orderId } = await createOrderOnServer(cartId, email, shippingAddress);
           // formatConfigForPaymentRequest doesn't include transactionInfo —
           // Google's loadPaymentData rejects the request without it. Only
           // used for the Google Pay sheet's own display; the real charge is
@@ -291,7 +323,7 @@ export function PayPalCheckout() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instance, eligible, cartId, cart?.amount]);
+  }, [instance, eligible, cartId, cart?.amount, email, shippingAddress]);
 
   // Apple Pay — only renders where window.ApplePaySession exists (Safari)
   // and the device itself reports canMakePayments(). Confirmed working
@@ -308,9 +340,10 @@ export function PayPalCheckout() {
       const btn = applePayBtnRef.current;
       btn.removeAttribute("hidden");
       const onClick = async () => {
+        if (!requireValidForm() || !shippingAddress) return;
         setStatus("processing");
         try {
-          const { orderId } = await createOrderOnServer(cartId);
+          const { orderId } = await createOrderOnServer(cartId, email, shippingAddress);
           const ApplePaySessionCtor = window.ApplePaySession as ApplePaySessionCtor;
           const session = new ApplePaySessionCtor(3, {
             countryCode: "US",
@@ -359,7 +392,7 @@ export function PayPalCheckout() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instance, eligible, cartId]);
+  }, [instance, eligible, cartId, email, shippingAddress]);
 
   if (!CLIENT_ID || !cartId || !cart || cart.lines.length === 0) return null;
 
@@ -368,7 +401,7 @@ export function PayPalCheckout() {
   return (
     <div className="paypal-checkout">
       <div className="paypal-checkout__divider">
-        <span>Or pay directly</span>
+        <span>Payment</span>
         <span className="microlabel">≈ ${usdEstimate}</span>
       </div>
 

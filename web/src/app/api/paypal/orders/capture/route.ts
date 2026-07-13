@@ -53,12 +53,16 @@ export async function POST(req: NextRequest) {
   const payerEmail = captured.payer?.email_address ?? null;
   const payerName = [captured.payer?.name?.given_name, captured.payer?.name?.surname].filter(Boolean).join(" ") || null;
 
+  // Coalesce, don't overwrite — the checkout page now collects email/
+  // shipping upfront at order-create time, which is more complete than
+  // whatever (possibly empty, e.g. for a raw card charge) a payment
+  // processor's capture response reports. The buyer's own entry always wins.
   await db.from("orders").update({
     status: "captured",
     paypal_capture_id: captureId,
-    customer_email: payerEmail,
-    customer_name: payerName,
-    shipping_address: unit?.shipping ?? null,
+    customer_email: order.customer_email ?? payerEmail,
+    customer_name: order.customer_name ?? payerName,
+    shipping_address: order.shipping_address ?? unit?.shipping ?? null,
     captured_at: new Date().toISOString(),
   }).eq("paypal_order_id", orderId);
 
@@ -82,11 +86,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (payerEmail && isEmailConfigured()) {
+  const confirmationEmail = order.customer_email ?? payerEmail;
+  if (confirmationEmail && isEmailConfigured()) {
     try {
       await sendOrderConfirmationEmail({
-        toEmail: payerEmail,
-        customerName: payerName ?? undefined,
+        toEmail: confirmationEmail,
+        customerName: order.customer_name ?? payerName ?? undefined,
         orderId,
         amountUsd: Number(order.amount_usd),
         lines: lineItems,

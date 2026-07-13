@@ -71,13 +71,33 @@ export interface CreatedPayPalOrder {
   id: string;
 }
 
+export interface ShippingAddress {
+  fullName: string;
+  addressLine1: string;
+  city: string;
+  countryCode: string;
+  postalCode?: string;
+}
+
 /** Creates a PayPal order for a fixed, server-computed USD amount — the
     caller must never pass a browser-supplied total (PayPal's own guidance:
-    item totals from the browser can be manipulated). */
-export async function createPayPalOrder(amountUsd: number, items: PayPalOrderItem[], customId: string): Promise<CreatedPayPalOrder> {
+    item totals from the browser can be manipulated). Email/shipping are
+    collected upfront on the checkout page (not left to whatever a payment
+    processor's capture response happens to report) and passed through here
+    so PayPal's own hosted popup uses this address instead of asking the
+    buyer to pick their own saved one. */
+export async function createPayPalOrder(
+  amountUsd: number,
+  items: PayPalOrderItem[],
+  customId: string,
+  payer?: { email?: string; shipping?: ShippingAddress },
+): Promise<CreatedPayPalOrder> {
   const itemTotal = items.reduce((sum, i) => sum + i.unitAmountUsd * i.quantity, 0);
+  const shipping = payer?.shipping;
   const order = await paypalFetch<CreatedPayPalOrder>("/v2/checkout/orders", "POST", {
     intent: "CAPTURE",
+    ...(shipping ? { application_context: { shipping_preference: "SET_PROVIDED_ADDRESS" } } : {}),
+    ...(payer?.email ? { payer: { email_address: payer.email } } : {}),
     purchase_units: [
       {
         custom_id: customId,
@@ -91,6 +111,17 @@ export async function createPayPalOrder(amountUsd: number, items: PayPalOrderIte
           quantity: String(i.quantity),
           unit_amount: { currency_code: "USD", value: i.unitAmountUsd.toFixed(2) },
         })),
+        ...(shipping ? {
+          shipping: {
+            name: { full_name: shipping.fullName },
+            address: {
+              address_line_1: shipping.addressLine1,
+              admin_area_2: shipping.city,
+              country_code: shipping.countryCode,
+              postal_code: shipping.postalCode || undefined,
+            },
+          },
+        } : {}),
       },
     ],
   });

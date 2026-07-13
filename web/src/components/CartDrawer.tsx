@@ -1,8 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useCart } from "./CartProvider";
-import { PayPalCheckout } from "./PayPalCheckout";
 import type { CartAttribute, CartLine } from "@/lib/shopify";
+
+// QAR has been pegged to USD at this exact rate by Qatari law since 2001 —
+// a fixed multiply, shown here only as an estimate; the real charge is
+// always computed server-side on the checkout page itself.
+const QAR_PER_USD = 3.64;
 
 function attr(attributes: CartAttribute[], key: string): string {
   return attributes.find((a) => a.key === key)?.value ?? "";
@@ -105,7 +110,18 @@ export function CartDrawer() {
             Checkout
           </button>
           <span className="microlabel" style={{ textAlign: "center" }}>Secure checkout · Complimentary returns</span>
-          <PayPalCheckout />
+
+          {lines.length > 0 && (
+            <>
+              <div className="paypal-checkout__divider">
+                <span>Or pay directly</span>
+                <span className="microlabel">≈ ${(Number(cart?.amount ?? 0) / QAR_PER_USD).toFixed(2)}</span>
+              </div>
+              <Link href="/checkout" className="btn btn--line" style={{ width: "100%", justifyContent: "center" }} onClick={closeDrawer}>
+                PayPal, Apple Pay, Google Pay & cards
+              </Link>
+            </>
+          )}
         </div>
       </aside>
     </>
