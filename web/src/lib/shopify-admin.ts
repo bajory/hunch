@@ -100,6 +100,7 @@ export async function createShopifyProduct(input: {
   vendor?: string;
   productType: string;
   variants: ProductSetVariant[];
+  imageUrl?: string;
 }): Promise<CreatedShopifyProduct> {
   if (!LOCATION_ID) throw new Error("SHOPIFY_LOCATION_ID is not configured");
 
@@ -164,6 +165,7 @@ export async function createShopifyProduct(input: {
   });
 
   await publishToHeadlessChannel(product.id);
+  if (input.imageUrl) await addProductImage(product.id, input.imageUrl, input.title);
 
   return { productId: product.id, variants };
 }
@@ -188,6 +190,28 @@ export async function publishToHeadlessChannel(productId: string): Promise<void>
   );
   const errs = d.publishablePublish.userErrors;
   if (errs.length > 0) throw new Error(`publishablePublish failed: ${JSON.stringify(errs)}`);
+}
+
+/** Attaches a product photo so Shopify's own checkout page has something to
+    show — checkout renders Shopify's product media, not our `_Image` cart
+    line attribute, so without this every line item shows a placeholder. */
+export async function addProductImage(productId: string, imageUrl: string, alt: string): Promise<void> {
+  const query = `
+    mutation AddImage($product: ProductUpdateInput!, $media: [CreateMediaInput!]) {
+      productUpdate(product: $product, media: $media) {
+        userErrors { field message }
+      }
+    }`;
+  const d = await adminGraphQL<{ productUpdate: { userErrors: { field: string[]; message: string }[] } }>(
+    query,
+    {
+      product: { id: productId },
+      media: [{ originalSource: imageUrl, alt, mediaContentType: "IMAGE" }],
+    },
+  );
+  if (d.productUpdate.userErrors.length > 0) {
+    throw new Error(`productUpdate (media) failed: ${JSON.stringify(d.productUpdate.userErrors)}`);
+  }
 }
 
 /** One-off fix for products created before ACTIVE+publish was part of

@@ -2,6 +2,16 @@ import { createAdminClient } from "./supabase-admin";
 import { createShopifyProduct } from "./shopify-admin";
 import { sizeOrderFor } from "./products";
 
+// Shopify's productUpdate media upload fetches the URL itself, so it must be
+// fully-qualified — most product photos are static assets under /public and
+// only ever referenced as site-relative paths ("/img/products/...").
+const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "https://hunchhouse.com";
+
+export function absoluteImageUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  return url.startsWith("/") ? `${SITE_ORIGIN}${url}` : url;
+}
+
 /** Shared by the one-time catalog migration script and the admin's
     "Create in Shopify" resync action — kept as one function so the two
     never drift out of sync with each other. */
@@ -13,7 +23,7 @@ export async function syncProductToShopify(
 
   const { data: row, error: fetchErr } = await db
     .from("products")
-    .select("slug, team_id, name, product_type, price, sizes, shopify_product_id, teams(name)")
+    .select("slug, team_id, name, product_type, price, sizes, images, shopify_product_id, teams(name)")
     .eq("slug", slug)
     .maybeSingle();
   if (fetchErr || !row) return { ok: false, error: fetchErr?.message ?? "Product not found" };
@@ -23,6 +33,7 @@ export async function syncProductToShopify(
   const title = team ? `${team.name} — ${row.name}` : row.name;
   const sizes = sizeOrderFor({ productType: row.product_type as never });
   const stock = (row.sizes ?? {}) as Record<string, number>;
+  const images = row.images as { front?: string } | null;
 
   try {
     const created = await createShopifyProduct({
@@ -30,6 +41,7 @@ export async function syncProductToShopify(
       vendor: "HUNCH",
       productType: row.product_type,
       variants: sizes.map((size) => ({ size, price: Number(row.price), quantity: stock[size] ?? 0 })),
+      imageUrl: absoluteImageUrl(images?.front),
     });
 
     const { error: updateErr } = await db
