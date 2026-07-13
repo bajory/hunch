@@ -26,15 +26,19 @@ import { useEffect, useRef, useState } from "react";
 import type { DetailedHTMLProps, HTMLAttributes } from "react";
 import { useCart } from "./CartProvider";
 
-// The PayPal v6 SDK renders these as custom elements — declare them so JSX
-// accepts <paypal-button>/<apple-pay-button> as intrinsic tags.
+// PayPal's v6 SDK renders <paypal-button> itself as a custom element (real
+// shadow-DOM content, confirmed working) — declare it so JSX accepts it as
+// an intrinsic tag. Apple Pay does NOT use a PayPal-rendered custom element
+// (confirmed empirically: zero shadow root, zero children, zero height no
+// matter what CSS is applied) — it's a plain <button> styled with the
+// native WebKit `-webkit-appearance: -apple-pay-button` value instead, so
+// no custom-element declaration is needed for it.
 type WebComponentProps = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & { type?: string; buttonstyle?: string };
 declare module "react" {
   // eslint-disable-next-line @typescript-eslint/no-namespace -- required by TS for JSX intrinsic-element augmentation
   namespace JSX {
     interface IntrinsicElements {
       "paypal-button": WebComponentProps;
-      "apple-pay-button": WebComponentProps;
     }
   }
 }
@@ -151,7 +155,7 @@ export function PayPalCheckout() {
   const cardExpiryRef = useRef<HTMLDivElement>(null);
   const cardCvvRef = useRef<HTMLDivElement>(null);
   const googlePayBtnRef = useRef<HTMLDivElement>(null);
-  const applePayBtnRef = useRef<HTMLElement>(null);
+  const applePayBtnRef = useRef<HTMLButtonElement>(null);
 
   const cartId = cart?.id ?? null;
 
@@ -385,7 +389,7 @@ export function PayPalCheckout() {
 
       {eligible?.isEligible("googlepay") && <div ref={googlePayBtnRef} />}
 
-      <apple-pay-button ref={applePayBtnRef} hidden buttonstyle="black" type="buy" />
+      <button type="button" ref={applePayBtnRef} hidden className="apple-pay-button-native" />
       {applePayDebug && <div className="paypal-checkout__error" style={{ fontSize: 11, wordBreak: "break-all" }}>{applePayDebug}</div>}
 
       {eligible?.isEligible("advanced_cards") && (
