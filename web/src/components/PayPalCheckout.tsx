@@ -5,13 +5,16 @@
    shortcut alongside the Shopify "Checkout" button in the cart drawer, not
    a replacement for it). Renders whichever of PayPal / Google Pay / Apple
    Pay / card fields the buyer is actually eligible for, via the PayPal JS
-   SDK v6. Takes the contact email + shipping address already collected by
-   CheckoutClient.tsx as props — every payment method's click handler
-   refuses to call createOrderOnServer until both are present, since none
-   of these payment flows can be trusted to collect a real shipping address
-   on their own (confirmed: card fields never can; Apple/Google Pay sheets
-   aren't asked to; the PayPal button would otherwise ask the buyer to pick
-   their own saved PayPal address instead of using this order's address).
+   SDK v6. Takes the contact email + shipping address collected by
+   CheckoutClient.tsx as props, but the two wallet methods don't actually
+   need them: Apple Pay and Google Pay each collect name/address/email
+   directly from their own native sheet (requiredShippingContactFields /
+   shippingAddressRequired below), so createOrderOnServer for those two is
+   deferred until the wallet's own callback provides that contact — the
+   on-page form's email/shippingAddress props are only a fallback if the
+   wallet somehow doesn't return an email. The PayPal button and card
+   fields have no such native collection, so their handlers gate on
+   requireValidForm() before ever creating an order.
 
    The v6 SDK ships no published TypeScript types, so `window.paypal` and
    its session objects are intentionally loosely typed below — the actual
@@ -91,9 +94,16 @@ declare global {
     ApplePaySession?: ApplePaySessionCtor;
   }
 }
+interface GooglePayAddress {
+  name?: string;
+  address1?: string;
+  locality?: string;
+  countryCode?: string;
+  postalCode?: string;
+}
 interface GooglePaymentsClient {
   isReadyToPay(request: unknown): Promise<{ result: boolean }>;
-  loadPaymentData(request: unknown): Promise<{ paymentMethodData: unknown }>;
+  loadPaymentData(request: unknown): Promise<{ paymentMethodData: unknown; email?: string; shippingAddress?: GooglePayAddress }>;
 }
 interface ApplePaySessionCtor {
   new (version: number, request: unknown): NativeApplePaySession;
@@ -101,12 +111,26 @@ interface ApplePaySessionCtor {
   STATUS_SUCCESS: number;
   STATUS_FAILURE: number;
 }
+interface ApplePayContact {
+  givenName?: string;
+  familyName?: string;
+  emailAddress?: string;
+  addressLines?: string[];
+  locality?: string;
+  countryCode?: string;
+  postalCode?: string;
+}
 interface NativeApplePaySession {
   begin(): void;
+  /** Cancels a hung merchant-validation or payment request — without this,
+      a failed validateMerchant() call left Apple's own sheet spinning on
+      "Processing" indefinitely instead of closing (confirmed on a real
+      device: the sheet never recovered on its own). */
+  abort(): void;
   completeMerchantValidation(merchantSession: unknown): void;
   completePayment(status: number): void;
   onvalidatemerchant: ((event: { validationURL: string }) => void) | null;
-  onpaymentauthorized: ((event: { payment: { token: unknown } }) => void) | null;
+  onpaymentauthorized: ((event: { payment: { token: unknown; shippingContact?: ApplePayContact } }) => void) | null;
 }
 
 let sdkScriptPromise: Promise<void> | null = null;
@@ -277,7 +301,10 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
   }
 
   // Google Pay — drives Google's own Payment Request API alongside the
-  // PayPal-side confirmOrder() bridge.
+  // PayPal-side confirmOrder() bridge. Same deferred-order-creation
+  // approach as Apple Pay: Google's own sheet collects email + shipping
+  // address (requested below), so the on-page form isn't needed for this
+  // payment method at all.
   useEffect(() => {
     if (!instance || !eligible?.isEligible("googlepay") || !cartId || !googlePayBtnRef.current) return;
     let cancelled = false;
@@ -295,16 +322,17 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
       button.type = "button";
       button.textContent = "Google Pay";
       button.onclick = async () => {
-        if (!requireValidForm() || !shippingAddress) return;
         setStatus("processing");
         try {
-          const { orderId } = await createOrderOnServer(cartId, email, shippingAddress);
           // formatConfigForPaymentRequest doesn't include transactionInfo —
           // Google's loadPaymentData rejects the request without it. Only
           // used for the Google Pay sheet's own display; the real charge is
-          // always computed server-side in the create-order route above.
+          // always computed server-side in the create-order route below.
           const paymentData = await client.loadPaymentData({
             ...config,
+            emailRequired: true,
+            shippingAddressRequired: true,
+            shippingAddressParameters: { phoneNumberRequired: false },
             transactionInfo: {
               totalPriceStatus: "FINAL",
               totalPrice: (Number(cart?.amount ?? 0) / QAR_PER_USD).toFixed(2),
@@ -312,6 +340,18 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
               countryCode: "US",
             },
           });
+          const addr = paymentData.shippingAddress;
+          if (!addr) throw new Error("Google Pay did not provide a shipping address");
+          const shipping = {
+            fullName: addr.name || "Google Pay customer",
+            addressLine1: addr.address1 ?? "",
+            city: addr.locality ?? "",
+            countryCode: addr.countryCode ?? "",
+            postalCode: addr.postalCode,
+          };
+          const buyerEmail = paymentData.email ?? email;
+          if (!buyerEmail) throw new Error("No email available from Google Pay");
+          const { orderId } = await createOrderOnServer(cartId, buyerEmail, shipping);
           await session.confirmOrder({ orderId, paymentMethodData: paymentData.paymentMethodData });
           await onOrderApproved(orderId);
         } catch (e) {
@@ -323,12 +363,15 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instance, eligible, cartId, cart?.amount, email, shippingAddress]);
+  }, [instance, eligible, cartId, cart?.amount, email]);
 
   // Apple Pay — only renders where window.ApplePaySession exists (Safari)
-  // and the device itself reports canMakePayments(). Confirmed working
-  // end-to-end on a real iPhone: button renders, tapping it opens the real
-  // Apple Pay sheet, and a sandbox charge completes successfully.
+  // and the device itself reports canMakePayments(). Unlike PayPal button
+  // and card fields, this doesn't need the on-page form filled in at all:
+  // Apple's own sheet collects name/address/email directly (requested via
+  // requiredShippingContactFields below), so order creation is deferred
+  // until onpaymentauthorized actually provides that contact — the order
+  // never exists with a blank/guessed address.
   useEffect(() => {
     if (!instance || !eligible?.isEligible("applepay") || !cartId || !applePayBtnRef.current) return;
     if (!window.ApplePaySession?.canMakePayments()) return;
@@ -339,60 +382,69 @@ export function PayPalCheckout({ email, shippingAddress }: { email: string; ship
       const { merchantCapabilities, supportedNetworks } = await bridge.config();
       const btn = applePayBtnRef.current;
       btn.removeAttribute("hidden");
-      const onClick = async () => {
-        if (!requireValidForm() || !shippingAddress) return;
+      const onClick = () => {
         setStatus("processing");
-        try {
-          const { orderId } = await createOrderOnServer(cartId, email, shippingAddress);
-          const ApplePaySessionCtor = window.ApplePaySession as ApplePaySessionCtor;
-          const session = new ApplePaySessionCtor(3, {
-            countryCode: "US",
-            currencyCode: "USD",
-            merchantCapabilities,
-            supportedNetworks,
-            total: { label: "HUNCH", amount: (Number(cart?.amount ?? 0) / QAR_PER_USD).toFixed(2) },
-          });
-          session.onvalidatemerchant = async (event) => {
-            try {
-              const { merchantSession } = await bridge.validateMerchant({ validationUrl: event.validationURL });
-              session.completeMerchantValidation(merchantSession);
-            } catch (e) {
-              // No completeMerchantValidation call on failure — Apple's own
-              // session has no explicit "validation failed" signal, it just
-              // times out. Surfacing the real error is the best we can do.
-              setError(`Apple Pay merchant validation failed: ${e instanceof Error ? e.message : String(e)}`);
-              setStatus("error");
-            }
-          };
-          session.onpaymentauthorized = async (event) => {
-            try {
-              // Order matters: only tell Apple's UI the payment succeeded
-              // once our own backend has actually captured it — telling
-              // Apple "success" first and then failing our own capture
-              // would show the buyer a successful payment we never recorded.
-              await bridge.confirmOrder({ orderId, token: event.payment.token });
-              await captureOnServer(orderId);
-              session.completePayment(ApplePaySessionCtor.STATUS_SUCCESS);
-              clearCart();
-              setStatus("done");
-              setTimeout(closeDrawer, 1500);
-            } catch (e) {
-              session.completePayment(ApplePaySessionCtor.STATUS_FAILURE);
-              setError(`Apple Pay payment failed: ${e instanceof Error ? e.message : String(e)}`);
-              setStatus("error");
-            }
-          };
-          session.begin();
-        } catch (e) {
-          setError(e instanceof Error ? e.message : String(e));
-          setStatus("error");
-        }
+        const ApplePaySessionCtor = window.ApplePaySession as ApplePaySessionCtor;
+        const session = new ApplePaySessionCtor(3, {
+          countryCode: "US",
+          currencyCode: "USD",
+          merchantCapabilities,
+          supportedNetworks,
+          total: { label: "HUNCH", amount: (Number(cart?.amount ?? 0) / QAR_PER_USD).toFixed(2) },
+          requiredShippingContactFields: ["postalAddress", "name", "email"],
+        });
+        session.onvalidatemerchant = async (event) => {
+          try {
+            const { merchantSession } = await bridge.validateMerchant({ validationUrl: event.validationURL });
+            session.completeMerchantValidation(merchantSession);
+          } catch (e) {
+            // Cancels the sheet outright instead of leaving it stuck on
+            // "Processing" — completeMerchantValidation() is the only
+            // success signal Apple's API has, there's no explicit
+            // "validation failed" one, so abort() is the correct way to
+            // tell Apple's own UI this attempt is over.
+            session.abort();
+            setError(`Apple Pay merchant validation failed: ${e instanceof Error ? e.message : String(e)}`);
+            setStatus("error");
+          }
+        };
+        session.onpaymentauthorized = async (event) => {
+          try {
+            const contact = event.payment.shippingContact;
+            if (!contact) throw new Error("Apple Pay did not provide a shipping address");
+            const shipping = {
+              fullName: [contact.givenName, contact.familyName].filter(Boolean).join(" ") || "Apple Pay customer",
+              addressLine1: contact.addressLines?.[0] ?? "",
+              city: contact.locality ?? "",
+              countryCode: contact.countryCode ?? "",
+              postalCode: contact.postalCode,
+            };
+            const buyerEmail = contact.emailAddress ?? email;
+            if (!buyerEmail) throw new Error("No email available from Apple Pay");
+            // Order matters: only tell Apple's UI the payment succeeded
+            // once our own backend has actually captured it — telling
+            // Apple "success" first and then failing our own capture
+            // would show the buyer a successful payment we never recorded.
+            const { orderId } = await createOrderOnServer(cartId, buyerEmail, shipping);
+            await bridge.confirmOrder({ orderId, token: event.payment.token });
+            await captureOnServer(orderId);
+            session.completePayment(ApplePaySessionCtor.STATUS_SUCCESS);
+            clearCart();
+            setStatus("done");
+            setTimeout(closeDrawer, 1500);
+          } catch (e) {
+            session.completePayment(ApplePaySessionCtor.STATUS_FAILURE);
+            setError(`Apple Pay payment failed: ${e instanceof Error ? e.message : String(e)}`);
+            setStatus("error");
+          }
+        };
+        session.begin();
       };
       btn.addEventListener("click", onClick);
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instance, eligible, cartId, email, shippingAddress]);
+  }, [instance, eligible, cartId, email]);
 
   if (!CLIENT_ID || !cartId || !cart || cart.lines.length === 0) return null;
 

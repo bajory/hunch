@@ -99,6 +99,9 @@ export function CheckoutClient() {
 
           <section className="checkout__section">
             <h2 className="checkout__heading">Shipping address</h2>
+            <p className="checkout__hint">
+              Only needed for PayPal or card — Apple Pay and Google Pay collect this for you.
+            </p>
             <div className="checkout__field">
               <label htmlFor="co-name">Full name</label>
               <input id="co-name" type="text" autoComplete="name" placeholder="Full name"

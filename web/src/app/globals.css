@@ -1909,6 +1909,7 @@ body:has(.house__hero) .nav:not(.is-solid) {
   padding-bottom: 10px;
 }
 .checkout__row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.checkout__hint { font-size: var(--t-micro); color: var(--bone-faint); letter-spacing: 0.04em; margin-top: -6px; }
 .checkout__field { display: flex; flex-direction: column; gap: 7px; }
 .checkout__field label {
   font-family: var(--font-ui);
