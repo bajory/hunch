@@ -2,32 +2,43 @@
 
 import { useMemo, useRef, useState } from "react";
 import { gsap, Flip, useGSAP, prefersReducedMotion, MOTION_OK } from "@/lib/gsap";
-import { LEAGUE_LABELS, PRODUCT_TYPE_DEFS, type LeagueId, type Product, type ProductType } from "@/lib/products";
+import {
+  LEAGUE_LABELS, PRODUCT_TYPE_DEFS, KIT_TYPE_LABELS,
+  type LeagueId, type Product, type ProductType, type ProductKitType,
+} from "@/lib/products";
 import type { PrintEntry } from "@/lib/catalog";
 import { ProductCard } from "./ProductCard";
 
 type Kind = "all" | "club" | "national";
 type TypeFilter = "all" | ProductType;
+type KitTypeFilter = "all" | ProductKitType;
 
 const LEAGUES = Object.keys(LEAGUE_LABELS) as LeagueId[];
+// Display order for the kit-type chips — matches KIT_TYPE_LABELS' own keys.
+const KIT_TYPES = Object.keys(KIT_TYPE_LABELS) as ProductKitType[];
 
-function matches(p: Product, kind: Kind, league: LeagueId | null, type: TypeFilter): boolean {
+function matches(p: Product, kind: Kind, league: LeagueId | null, type: TypeFilter, kitType: KitTypeFilter): boolean {
   if (kind !== "all" && p.teamKind !== kind) return false;
   if (league && p.league !== league) return false;
   if (type !== "all" && p.productType !== type) return false;
+  if (kitType !== "all" && p.kitType !== kitType) return false;
   return true;
 }
 
-export function ShopGrid({ products, initialKind = "all", initialLeague = null, initialType = "all", printMap }: {
+export function ShopGrid({
+  products, initialKind = "all", initialLeague = null, initialType = "all", initialKitType = "all", printMap,
+}: {
   products: Product[];
   initialKind?: Kind;
   initialLeague?: LeagueId | null;
   initialType?: TypeFilter;
+  initialKitType?: KitTypeFilter;
   printMap?: Partial<Record<string, PrintEntry>>;
 }) {
   const [kind, setKind] = useState<Kind>(initialKind);
   const [league, setLeague] = useState<LeagueId | null>(initialLeague);
   const [type, setType] = useState<TypeFilter>(initialType);
+  const [kitType, setKitType] = useState<KitTypeFilter>(initialKitType);
   const gridRef = useRef<HTMLDivElement>(null);
 
   // Only offer type chips for types the catalog actually carries — the bar
@@ -37,9 +48,16 @@ export function ShopGrid({ products, initialKind = "all", initialLeague = null, 
     return PRODUCT_TYPE_DEFS.filter((d) => present.has(d.id));
   }, [products]);
 
+  // Same idea for kit types (home/away/retro/…) — kitType is jersey-only,
+  // so this stays empty entirely on a catalog with no jerseys at all.
+  const presentKitTypes = useMemo(() => {
+    const present = new Set(products.map((p) => p.kitType).filter(Boolean));
+    return KIT_TYPES.filter((k) => present.has(k));
+  }, [products]);
+
   const visible = useMemo(
-    () => products.filter((p) => matches(p, kind, league, type)),
-    [products, kind, league, type],
+    () => products.filter((p) => matches(p, kind, league, type, kitType)),
+    [products, kind, league, type, kitType],
   );
 
   // Entrance stagger
@@ -57,14 +75,14 @@ export function ShopGrid({ products, initialKind = "all", initialLeague = null, 
     });
   }, { scope: gridRef });
 
-  function applyFilter(nextKind: Kind, nextLeague: LeagueId | null, nextType: TypeFilter) {
+  function applyFilter(nextKind: Kind, nextLeague: LeagueId | null, nextType: TypeFilter, nextKitType: KitTypeFilter) {
     const grid = gridRef.current;
     if (!grid || prefersReducedMotion()) {
-      setKind(nextKind); setLeague(nextLeague); setType(nextType);
+      setKind(nextKind); setLeague(nextLeague); setType(nextType); setKitType(nextKitType);
       return;
     }
     const state = Flip.getState(grid.querySelectorAll(".pcard"));
-    setKind(nextKind); setLeague(nextLeague); setType(nextType);
+    setKind(nextKind); setLeague(nextLeague); setType(nextType); setKitType(nextKitType);
     requestAnimationFrame(() => {
       Flip.from(state, {
         duration: 0.7,
@@ -77,7 +95,7 @@ export function ShopGrid({ products, initialKind = "all", initialLeague = null, 
     });
   }
 
-  const setKindFilter = (k: Kind) => applyFilter(k, k === "national" ? null : league, type);
+  const setKindFilter = (k: Kind) => applyFilter(k, k === "national" ? null : league, type, kitType);
 
   return (
     <>
@@ -95,8 +113,21 @@ export function ShopGrid({ products, initialKind = "all", initialLeague = null, 
             <div className="filterbar__group">
               {presentTypes.map((d) => (
                 <button key={d.id} className={`chip${type === d.id ? " is-on" : ""}`}
-                  onClick={() => applyFilter(kind, league, type === d.id ? "all" : d.id)}>
+                  onClick={() => applyFilter(kind, league, type === d.id ? "all" : d.id, kitType)}>
                   {d.plural}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {presentKitTypes.length > 1 && (
+          <>
+            <span className="filterbar__sep" aria-hidden="true" />
+            <div className="filterbar__group">
+              {presentKitTypes.map((k) => (
+                <button key={k} className={`chip${kitType === k ? " is-on" : ""}`}
+                  onClick={() => applyFilter(kind, league, type, kitType === k ? "all" : k)}>
+                  {KIT_TYPE_LABELS[k]}
                 </button>
               ))}
             </div>
@@ -108,7 +139,7 @@ export function ShopGrid({ products, initialKind = "all", initialLeague = null, 
             <div className="filterbar__group">
               {LEAGUES.map((l) => (
                 <button key={l} className={`chip${league === l ? " is-on" : ""}`}
-                  onClick={() => applyFilter(kind, league === l ? null : l, type)}>
+                  onClick={() => applyFilter(kind, league === l ? null : l, type, kitType)}>
                   {LEAGUE_LABELS[l]}
                 </button>
               ))}

@@ -29,10 +29,8 @@ export function FeaturePicks({ products, printMap }: {
 }) {
   const worldCup = pick(products, "argentina-home", (p) => p.teamKind === "national");
   const newSeason = pick(products, "real-madrid-home", (p) => p.teamKind === "club" && p.productType === "jersey" && p.kitType !== "retro");
-  const retro = products.find((p) => p.kitType === "retro" && p.status === "available")
-    ?? pick(products, "barcelona-home", (p) => p.teamKind === "club");
 
-  if (!worldCup || !newSeason || !retro) return null;
+  if (!worldCup || !newSeason) return null;
 
   const hero: PickTile = {
     href: "/shop?kind=national",
@@ -46,11 +44,14 @@ export function FeaturePicks({ products, printMap }: {
     sub: "This year's club kits, fresh off the rail.",
     image: frontOf(newSeason, printMap),
   };
+  // Fixed art direction, not a live product photo — this tile points at the
+  // whole retro collection across every team, not any one shirt, so there's
+  // no single product whose photo would represent it correctly.
   const retroTile: PickTile = {
-    href: `/product/${retro.slug}`,
+    href: "/shop?kitType=retro",
     title: "Retro Picks",
-    sub: "Last season's shirt, still in stock.",
-    image: frontOf(retro, printMap),
+    sub: "Vintage-inspired kits from your favourite clubs, reissued.",
+    image: "/img/retro-picks/retro-picks.png",
   };
 
   return (
