@@ -862,12 +862,12 @@ body:has(.house__hero) .nav:not(.is-solid) {
 .finaltouch__tile-title {
   font-family: var(--font-ui);
   font-weight: 600;
-  font-size: var(--t-small);
-  letter-spacing: 0.1em;
+  font-size: var(--t-body);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--bone);
 }
-.finaltouch__tile-sub { color: var(--bone-dim); font-size: var(--t-small); line-height: 1.6; max-width: 34ch; }
+.finaltouch__tile-sub { color: var(--bone-dim); font-size: var(--t-body); line-height: 1.6; max-width: 34ch; }
 .finaltouch__tile-cta {
   width: fit-content;
   font-family: var(--font-ui);
@@ -882,21 +882,35 @@ body:has(.house__hero) .nav:not(.is-solid) {
 @media (max-width: 1024px) {
   /* Tablet and below — matches the breakpoint .pdp2/.detail already use for
      "no longer wide enough for the full desktop layout" elsewhere in this
-     stylesheet. Same edge-to-edge scroll-snap technique as .rail__track:
-     padding-inline (not a wrapping max-width container) creates the gutter
-     inset for the first/last card while the track itself spans the full
-     viewport. */
-  .finaltouch__grid {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: 78%;
+     stylesheet. Two layers, same as .rail__pin/.rail__track: a scrolling
+     wrapper with NO padding of its own, plus an inner width:max-content
+     track that carries the padding-inline as real content width. Putting
+     overflow-x:auto and padding-inline on the SAME element (the original,
+     buggy version of this rule) is a well-known browser quirk — the start
+     padding of a scrolling container isn't rendered as inset space before
+     the first child, so cards bled flush to the screen edge. */
+  .finaltouch__scroller {
     overflow-x: auto;
     scroll-snap-type: x mandatory;
+    /* Without this, the browser treats the leading gutter as "before the
+       first valid snap position" and auto-scrolls past it on load to snap
+       tile 1 flush against the scrollport edge — silently eating the exact
+       inset this whole two-layer structure exists to create. This tells it
+       the snap boundary already sits `gutter` in from the real edge. */
+    scroll-padding-inline: var(--gutter);
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
-  .finaltouch__grid::-webkit-scrollbar { display: none; }
+  .finaltouch__scroller::-webkit-scrollbar { display: none; }
+  .finaltouch__grid {
+    max-width: none;
+    margin-inline: 0;
+    width: max-content;
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 78vw;
+  }
   .finaltouch__tile { scroll-snap-align: start; }
 }
 

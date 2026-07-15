@@ -33,20 +33,22 @@ export function FinalTouch() {
           Make it special
         </h2>
       </div>
-      <div className="finaltouch__grid">
-        {TILES.map((t) => (
-          <Link key={t.title} href={t.href} className="finaltouch__tile" data-cursor="Enter">
-            <div className="finaltouch__tile-frame">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={t.image} alt="" className="finaltouch__tile-img" loading="lazy" />
-            </div>
-            <div className="finaltouch__tile-body">
-              <h3 className="finaltouch__tile-title">{t.title}</h3>
-              <p className="finaltouch__tile-sub">{t.sub}</p>
-              <span className="finaltouch__tile-cta">{t.cta}</span>
-            </div>
-          </Link>
-        ))}
+      <div className="finaltouch__scroller">
+        <div className="finaltouch__grid">
+          {TILES.map((t) => (
+            <Link key={t.title} href={t.href} className="finaltouch__tile" data-cursor="Enter">
+              <div className="finaltouch__tile-frame">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={t.image} alt="" className="finaltouch__tile-img" loading="lazy" />
+              </div>
+              <div className="finaltouch__tile-body">
+                <h3 className="finaltouch__tile-title">{t.title}</h3>
+                <p className="finaltouch__tile-sub">{t.sub}</p>
+                <span className="finaltouch__tile-cta">{t.cta}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
     </section>
   );
