@@ -1,58 +1,14 @@
 import Link from "next/link";
-import { livePhotosFor, type PrintEntry, type KitTypeId } from "@/lib/catalog";
-import type { Product } from "@/lib/products";
-
-interface PickTile {
-  href: string;
-  title: string;
-  sub: string;
-  image: string;
-}
-
-function frontOf(p: Product, printMap: Partial<Record<string, PrintEntry>>): string {
-  const live = p.productType === "jersey" && p.kitType && p.teamSlug
-    ? livePhotosFor(p.teamSlug, p.kitType as KitTypeId, printMap)
-    : null;
-  return live?.front || p.images.front;
-}
-
-function pick(products: Product[], preferSlug: string, fallback: (p: Product) => boolean): Product | undefined {
-  return products.find((p) => p.slug === preferSlug && p.status === "available")
-    ?? products.find((p) => fallback(p) && p.status === "available");
-}
+import type { PicksContent } from "@/lib/site-content";
 
 /** Three curated destinations replacing the old league scroll-strip: one large
-    hero + two smaller tiles, mirroring each other (image-left / image-right). */
-export function FeaturePicks({ products, printMap }: {
-  products: Product[];
-  printMap: Partial<Record<string, PrintEntry>>;
-}) {
-  const worldCup = pick(products, "argentina-home", (p) => p.teamKind === "national");
-  const newSeason = pick(products, "real-madrid-home", (p) => p.teamKind === "club" && p.productType === "jersey" && p.kitType !== "retro");
-
-  if (!worldCup || !newSeason) return null;
-
-  const hero: PickTile = {
-    href: "/shop?kind=national",
-    title: "World Cup Picks",
-    sub: "Player-version shirts from the nations chasing it all in 2026.",
-    image: frontOf(worldCup, printMap),
-  };
-  const seasonTile: PickTile = {
-    href: "/shop?kind=club",
-    title: "New Season Drops",
-    sub: "This year's club kits, fresh off the rail.",
-    image: frontOf(newSeason, printMap),
-  };
-  // Fixed art direction, not a live product photo — this tile points at the
-  // whole retro collection across every team, not any one shirt, so there's
-  // no single product whose photo would represent it correctly.
-  const retroTile: PickTile = {
-    href: "/shop?kitType=retro",
-    title: "Retro Picks",
-    sub: "Vintage-inspired kits from your favourite clubs, reissued.",
-    image: "/img/retro-picks/retro-picks.png",
-  };
+    hero + two smaller tiles, mirroring each other (image-left / image-right).
+    Fully admin-set via /admin/content (image, copy, link per tile) — no
+    longer tied to whichever single product happens to match a hardcoded
+    slug, so a tile can point at a filtered collection (e.g. all retro kits)
+    rather than one specific product's page. */
+export function FeaturePicks({ content }: { content: PicksContent }) {
+  const { hero, season, retro } = content;
 
   return (
     <section className="picks" aria-label="Featured picks">
@@ -65,29 +21,29 @@ export function FeaturePicks({ products, printMap }: {
           <div className="picks__hero-body">
             <h3>{hero.title}</h3>
             <p>{hero.sub}</p>
-            <span className="picks__btn">Shop now</span>
+            <span className="picks__btn">{hero.cta || "Shop now"}</span>
           </div>
         </Link>
 
-        <Link href={seasonTile.href} className="picks__tile" data-cursor="Shop">
+        <Link href={season.href} className="picks__tile" data-cursor="Shop">
           <div className="picks__tile-media">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={seasonTile.image} alt={seasonTile.title} loading="lazy" />
+            <img src={season.image} alt={season.title} loading="lazy" />
           </div>
           <div className="picks__tile-body">
-            <h3>{seasonTile.title}</h3>
-            <p>{seasonTile.sub}</p>
+            <h3>{season.title}</h3>
+            <p>{season.sub}</p>
           </div>
         </Link>
 
-        <Link href={retroTile.href} className="picks__tile picks__tile--reverse" data-cursor="Shop">
+        <Link href={retro.href} className="picks__tile picks__tile--reverse" data-cursor="Shop">
           <div className="picks__tile-body">
-            <h3>{retroTile.title}</h3>
-            <p>{retroTile.sub}</p>
+            <h3>{retro.title}</h3>
+            <p>{retro.sub}</p>
           </div>
           <div className="picks__tile-media">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={retroTile.image} alt={retroTile.title} loading="lazy" />
+            <img src={retro.image} alt={retro.title} loading="lazy" />
           </div>
         </Link>
       </div>

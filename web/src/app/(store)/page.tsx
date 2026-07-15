@@ -45,7 +45,7 @@ export default async function HomePage() {
     <main>
       <Hero content={content.hero} />
 
-      <FeaturePicks products={allProducts} printMap={print} />
+      <FeaturePicks content={content.picks} />
 
       <NewArrivals content={content.newArrivals} />
 

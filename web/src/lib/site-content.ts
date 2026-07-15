@@ -80,6 +80,24 @@ export interface NewArrivalsContent {
   items: NewArrivalItem[];
 }
 
+export interface PickTile {
+  image: string;
+  title: string;
+  sub: string;
+  href: string;
+  /** Only the hero tile shows a button — season/retro are the whole card. */
+  cta?: string;
+}
+
+/** The three "World Cup Picks / New Season Drops / Retro Picks" destination
+    tiles — each fully admin-set (image, copy, link), no longer tied to
+    whichever single product happens to match a hardcoded slug. */
+export interface PicksContent {
+  hero: PickTile;
+  season: PickTile;
+  retro: PickTile;
+}
+
 /** Which of the curated font presets (lib/fonts.ts) is currently live, plus an
     optional admin-uploaded custom font file per slot — when set, the custom
     font takes over from the preset (which still serves as its fallback). */
@@ -92,6 +110,7 @@ export interface TypographyContent {
 
 export interface SiteContent {
   hero: HeroContent;
+  picks: PicksContent;
   split: SplitContent;
   craft: CraftContent;
   marquee: MarqueeContent;
@@ -125,6 +144,27 @@ export const SITE_CONTENT_DEFAULTS: SiteContent = {
         sub: "Player-version tournament shirts from 17 nations, sold blank the way they arrive.",
       },
     ],
+  },
+  picks: {
+    hero: {
+      image: "/img/products/argentina/home/front.png",
+      title: "World Cup Picks",
+      sub: "Player-version shirts from the nations chasing it all in 2026.",
+      href: "/shop?kind=national",
+      cta: "Shop now",
+    },
+    season: {
+      image: "/img/products/real-madrid/home/front.png",
+      title: "New Season Drops",
+      sub: "This year's club kits, fresh off the rail.",
+      href: "/shop?kind=club",
+    },
+    retro: {
+      image: "/img/retro-picks/retro-picks.png",
+      title: "Retro Picks",
+      sub: "Vintage-inspired kits from your favourite clubs, reissued.",
+      href: "/shop?kitType=retro",
+    },
   },
   split: {
     panels: [
@@ -195,6 +235,7 @@ function mergeAll(rows: SiteContentRow[]): SiteContent {
   const bySection = new Map(rows.map((r) => [r.section, r.data]));
   return {
     hero:    mergeSection(SITE_CONTENT_DEFAULTS.hero,    bySection.get("hero")),
+    picks:   mergeSection(SITE_CONTENT_DEFAULTS.picks,   bySection.get("picks")),
     split:   mergeSection(SITE_CONTENT_DEFAULTS.split,   bySection.get("split")),
     craft:   mergeSection(SITE_CONTENT_DEFAULTS.craft,   bySection.get("craft")),
     marquee: mergeSection(SITE_CONTENT_DEFAULTS.marquee, bySection.get("marquee")),

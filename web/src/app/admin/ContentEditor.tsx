@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { SiteContent, HeroContent, SplitContent, CraftContent, MarqueeContent, HighlightsContent, NewArrivalsContent, TypographyContent } from "@/lib/site-content";
+import type { SiteContent, HeroContent, PicksContent, SplitContent, CraftContent, MarqueeContent, HighlightsContent, NewArrivalsContent, TypographyContent } from "@/lib/site-content";
 import { SERIF_FONTS, SANS_FONTS } from "@/lib/fonts";
 import { saveSiteContent, uploadSiteImage, uploadSiteVideo, uploadSiteFont } from "./content-actions";
 
@@ -378,6 +378,64 @@ function NewArrivalsEditor({ initial }: { initial: NewArrivalsContent }) {
   );
 }
 
+function PickTileFields({ label, tile, fieldPrefix, showCta, onChange }: {
+  label: string; tile: PicksContent["hero"]; fieldPrefix: string; showCta?: boolean;
+  onChange: (patch: Partial<PicksContent["hero"]>) => void;
+}) {
+  return (
+    <div className="adm-content-block">
+      <div className="adm-content-block__hd">
+        <span className="adm-font-slot__label">{label}</span>
+      </div>
+      <ImageField label="Image" value={tile.image} field={`${fieldPrefix}-image`} section="picks"
+        onChange={(image) => onChange({ image })} />
+      <label className="adm-content-label">Title
+        <input className="adm-input adm-input--block" value={tile.title} onChange={(e) => onChange({ title: e.target.value })} />
+      </label>
+      <label className="adm-content-label">Subtext
+        <textarea className="adm-input adm-input--block adm-textarea" rows={2} value={tile.sub} onChange={(e) => onChange({ sub: e.target.value })} />
+      </label>
+      <label className="adm-content-label">Link (where the tile goes when clicked)
+        <input className="adm-input adm-input--block" value={tile.href} onChange={(e) => onChange({ href: e.target.value })} />
+      </label>
+      {showCta && (
+        <label className="adm-content-label">Button label
+          <input className="adm-input adm-input--block" value={tile.cta ?? ""} onChange={(e) => onChange({ cta: e.target.value })} />
+        </label>
+      )}
+    </div>
+  );
+}
+
+function PicksEditor({ initial }: { initial: PicksContent }) {
+  const [v, setV] = useState(initial);
+  const [state, setState] = useState<SaveState>("idle");
+  async function save() {
+    setState("saving");
+    const res = await saveSiteContent("picks", v);
+    setState(res.ok ? "ok" : "err");
+  }
+  return (
+    <div className="adm-section">
+      <div className="adm-section__hd">Featured Picks — &ldquo;World Cup / New Season / Retro&rdquo;</div>
+      <p className="adm-hint">
+        The three destination tiles right under the hero. Each links wherever you set it — a
+        filtered shop view (e.g. <code>/shop?kitType=retro</code>) or a single product page — so
+        Retro Picks can point at every retro kit across all teams instead of just one shirt.
+      </p>
+      <PickTileFields label="Hero tile — World Cup Picks" tile={v.hero} fieldPrefix="hero" showCta
+        onChange={(patch) => setV({ ...v, hero: { ...v.hero, ...patch } })} />
+      <PickTileFields label="New Season Drops" tile={v.season} fieldPrefix="season"
+        onChange={(patch) => setV({ ...v, season: { ...v.season, ...patch } })} />
+      <PickTileFields label="Retro Picks" tile={v.retro} fieldPrefix="retro"
+        onChange={(patch) => setV({ ...v, retro: { ...v.retro, ...patch } })} />
+      <div style={{ marginTop: 12 }}>
+        <SaveButton state={state} onClick={save} />
+      </div>
+    </div>
+  );
+}
+
 function CustomFontUpload({ slot, url, onChange, onRemove }: {
   slot: "serif" | "sans"; url: string | undefined;
   onChange: (url: string) => void; onRemove: () => void;
@@ -476,6 +534,7 @@ export function ContentEditor({ content }: { content: SiteContent }) {
     <div className="adm-content-editor">
       <TypographyEditor initial={content.typography} />
       <HeroEditor initial={content.hero} />
+      <PicksEditor initial={content.picks} />
       <SplitEditor initial={content.split} />
       <NewArrivalsEditor initial={content.newArrivals} />
       <HighlightsEditor initial={content.highlights} />
