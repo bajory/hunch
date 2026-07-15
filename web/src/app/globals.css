@@ -824,57 +824,80 @@ body:has(.house__hero) .nav:not(.is-solid) {
   .picks__hero-media img, .picks__tile-media img { max-width: 100%; }
 }
 
-/* ── Category tiles (asymmetric grid) ────────────────────────────────────── */
+/* ── Final Touch (equal 3-up, image above text) ──────────────────────────
+   The three ways to elevate an order before checkout — personalisation,
+   packaging, a note. Plain contained photography, title/copy/link sit in
+   the page's own ground below the frame (no scrim-over-photo treatment) —
+   a deliberate editorial-services reference, not this app's usual full-
+   bleed tile language. Mobile swipes as a peeking horizontal strip. */
 
-.tiles { padding-block: clamp(56px, 9vh, 120px); }
-.tiles__grid {
+.finaltouch { padding-block: clamp(56px, 9vh, 120px); }
+.finaltouch__grid {
+  max-width: var(--maxw);
+  margin-inline: auto;
   margin-top: clamp(28px, 5vh, 48px);
+  padding-inline: var(--gutter);
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  grid-template-rows: repeat(2, minmax(160px, auto));
-  gap: 14px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(20px, 3vw, 40px);
 }
-.tiles__tile {
-  position: relative;
+.finaltouch__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.finaltouch__tile-frame {
+  aspect-ratio: 4 / 5;
   overflow: clip;
   background: var(--carbon);
-  border: 1px solid var(--line-soft);
-  display: flex;
-  align-items: flex-end;
-  padding: clamp(20px, 3vw, 36px);
-  min-height: 260px;
 }
-.tiles__tile--lg { grid-row: 1 / 3; }
-.tiles__tile-img {
-  position: absolute;
-  inset: 0;
+.finaltouch__tile-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: transform 0.9s var(--ease);
 }
-.tiles__tile:hover .tiles__tile-img { transform: scale(1.06); }
-.tiles__tile-scrim {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(200deg, rgba(10,9,8,0.04) 34%, rgba(10,9,8,0.88) 100%);
+.finaltouch__tile:hover .finaltouch__tile-img { transform: scale(1.06); }
+.finaltouch__tile-body { display: flex; flex-direction: column; gap: 8px; }
+.finaltouch__tile-title {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: var(--t-small);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bone);
 }
-.tiles__tile-body { position: relative; z-index: 1; }
-.tiles__tile-title {
-  font-family: var(--font-display);
-  font-weight: 300;
-  letter-spacing: -0.02em;
-  line-height: 1;
-  font-size: clamp(1.3rem, 2.4vw, 2rem);
-  color: #fff;
-  margin-block: 8px 6px;
+.finaltouch__tile-sub { color: var(--bone-dim); font-size: var(--t-small); line-height: 1.6; max-width: 34ch; }
+.finaltouch__tile-cta {
+  width: fit-content;
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  color: var(--bone-dim);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.25s var(--ease);
 }
-.tiles__tile-sub { color: rgba(255,255,255,0.72); font-size: var(--t-small); max-width: 34ch; }
-.tiles__tile--sm .tiles__tile-title { font-size: clamp(1.1rem, 1.8vw, 1.5rem); }
+.finaltouch__tile:hover .finaltouch__tile-cta { color: var(--brass); }
 
-@media (max-width: 760px) {
-  .tiles__grid { grid-template-columns: 1fr; grid-template-rows: none; }
-  .tiles__tile--lg { grid-row: auto; }
+@media (max-width: 1024px) {
+  /* Tablet and below — matches the breakpoint .pdp2/.detail already use for
+     "no longer wide enough for the full desktop layout" elsewhere in this
+     stylesheet. Same edge-to-edge scroll-snap technique as .rail__track:
+     padding-inline (not a wrapping max-width container) creates the gutter
+     inset for the first/last card while the track itself spans the full
+     viewport. */
+  .finaltouch__grid {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 78%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .finaltouch__grid::-webkit-scrollbar { display: none; }
+  .finaltouch__tile { scroll-snap-align: start; }
 }
 
 /* ── Club / National split ──────────────────────────────────────────────── */

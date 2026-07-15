@@ -4,7 +4,7 @@ import { FeaturedRail } from "@/components/home/FeaturedRail";
 import { FeaturePicks } from "@/components/home/FeaturePicks";
 import { NewArrivals } from "@/components/home/NewArrivals";
 import { SplitPanels } from "@/components/home/SplitPanels";
-import { CategoryTiles } from "@/components/home/CategoryTiles";
+import { FinalTouch } from "@/components/home/FinalTouch";
 import { Highlights } from "@/components/home/Highlights";
 import { Marquee } from "@/components/motion/Marquee";
 import { Reveal } from "@/components/motion/Reveal";
@@ -53,7 +53,7 @@ export default async function HomePage() {
 
       <SplitPanels content={content.split} />
 
-      <CategoryTiles />
+      <FinalTouch />
 
       <Highlights content={content.highlights} />
 
