@@ -387,8 +387,12 @@ function PickTileFields({ label, tile, fieldPrefix, showCta, onChange }: {
       <div className="adm-content-block__hd">
         <span className="adm-font-slot__label">{label}</span>
       </div>
-      <ImageField label="Image" value={tile.image} field={`${fieldPrefix}-image`} section="picks"
+      <ImageField label="Image (desktop, two-column layout — bottom-anchored, portrait/square works best)"
+        value={tile.image} field={`${fieldPrefix}-image`} section="picks"
         onChange={(image) => onChange({ image })} />
+      <ImageField label="Image (mobile, single-column layout — a wide/landscape photo fits this short frame; falls back to the desktop image if left blank)"
+        value={tile.imageMobile ?? ""} field={`${fieldPrefix}-image-mobile`} section="picks"
+        onChange={(imageMobile) => onChange({ imageMobile })} />
       <label className="adm-content-label">Title
         <input className="adm-input adm-input--block" value={tile.title} onChange={(e) => onChange({ title: e.target.value })} />
       </label>

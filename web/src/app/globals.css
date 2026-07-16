@@ -748,10 +748,19 @@ body:has(.house__hero) .nav:not(.is-solid) {
   overflow: clip;
 }
 .picks__hero-media img, .picks__tile-media img {
+  grid-area: 1 / 1; /* stack both the desktop and mobile photo in the same
+    cell — only one is ever visible, toggled below, but without this each
+    would take its own implicit grid row since neither has an explicit
+    placement. */
   width: 100%; height: 100%;
   object-fit: contain;
   transition: transform 0.6s var(--ease);
 }
+.picks__img--mobile { display: none; }
+/* Desktop's two-column layout gives each tile a tall, narrow frame — a
+   portrait/square photo anchored to the bottom (rather than centered)
+   keeps feet/product grounded instead of floating mid-frame. */
+.picks__img--desktop { object-position: center bottom; }
 .picks__hero:hover .picks__hero-media img,
 .picks__tile:hover .picks__tile-media img { transform: scale(1.03); }
 .picks__hero-body {
@@ -823,6 +832,11 @@ body:has(.house__hero) .nav:not(.is-solid) {
   .picks__grid { grid-template-columns: 1fr; }
   .picks__tile, .picks__tile--reverse { min-height: 200px; }
   .picks__hero-media img, .picks__tile-media img { max-width: 100%; }
+  /* Single-column layout gets the wide/mobile photo instead — a portrait
+     photo composed for the tall desktop frame shrinks awkwardly into this
+     short, wide one. */
+  .picks__img--desktop { display: none; }
+  .picks__img--mobile { display: block; object-position: center; }
 }
 
 /* ── Final Touch (equal 3-up, image above text) ──────────────────────────

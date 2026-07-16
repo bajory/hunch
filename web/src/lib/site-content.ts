@@ -81,7 +81,15 @@ export interface NewArrivalsContent {
 }
 
 export interface PickTile {
+  /** Used on the two-column desktop layout (taller-than-wide frame) —
+      bottom-anchored via object-position, not cropped, since object-fit
+      stays "contain" throughout. */
   image: string;
+  /** Used on the single-column mobile layout (short, wide frame) — falls
+      back to `image` if unset. A portrait/square photo that works well on
+      desktop typically shrinks awkwardly into mobile's wide strip, so a
+      separately-composed (usually landscape) photo belongs here instead. */
+  imageMobile?: string;
   title: string;
   sub: string;
   href: string;

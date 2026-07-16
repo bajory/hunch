@@ -1,5 +1,23 @@
 import Link from "next/link";
-import type { PicksContent } from "@/lib/site-content";
+import type { PickTile, PicksContent } from "@/lib/site-content";
+
+/** Renders both the desktop and mobile photo for a tile — only one is ever
+    visible at a time (toggled by CSS at the same breakpoint the layout
+    itself switches at), so the browser fetches whichever the visitor's
+    viewport actually needs at any given moment isn't optimized here, but
+    correctness (right image, right layout) matters more than that for a
+    homepage hero with two photos. Falls back to the desktop photo on
+    mobile if no separate one was set. */
+function TileImage({ tile }: { tile: PickTile }) {
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={tile.image} alt={tile.title} loading="lazy" className="picks__img picks__img--desktop" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={tile.imageMobile || tile.image} alt={tile.title} loading="lazy" className="picks__img picks__img--mobile" />
+    </>
+  );
+}
 
 /** Three curated destinations replacing the old league scroll-strip: one large
     hero + two smaller tiles, mirroring each other (image-left / image-right).
@@ -15,8 +33,7 @@ export function FeaturePicks({ content }: { content: PicksContent }) {
       <div className="picks__grid">
         <Link href={hero.href} className="picks__hero" data-cursor="Shop">
           <div className="picks__hero-media">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={hero.image} alt={hero.title} loading="lazy" />
+            <TileImage tile={hero} />
           </div>
           <div className="picks__hero-body">
             <h3>{hero.title}</h3>
@@ -27,8 +44,7 @@ export function FeaturePicks({ content }: { content: PicksContent }) {
 
         <Link href={season.href} className="picks__tile" data-cursor="Shop">
           <div className="picks__tile-media">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={season.image} alt={season.title} loading="lazy" />
+            <TileImage tile={season} />
           </div>
           <div className="picks__tile-body">
             <h3>{season.title}</h3>
@@ -42,8 +58,7 @@ export function FeaturePicks({ content }: { content: PicksContent }) {
             <p>{retro.sub}</p>
           </div>
           <div className="picks__tile-media">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={retro.image} alt={retro.title} loading="lazy" />
+            <TileImage tile={retro} />
           </div>
         </Link>
       </div>
