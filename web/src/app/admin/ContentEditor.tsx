@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { SiteContent, HeroContent, PicksContent, SplitContent, CraftContent, MarqueeContent, HighlightsContent, NewArrivalsContent, TypographyContent } from "@/lib/site-content";
+import type { SiteContent, HeroContent, ShopHeroContent, PicksContent, SplitContent, CraftContent, MarqueeContent, HighlightsContent, NewArrivalsContent, TypographyContent } from "@/lib/site-content";
 import { SERIF_FONTS, SANS_FONTS } from "@/lib/fonts";
 import { saveSiteContent, uploadSiteImage, uploadSiteVideo, uploadSiteFont } from "./content-actions";
 
@@ -378,6 +378,32 @@ function NewArrivalsEditor({ initial }: { initial: NewArrivalsContent }) {
   );
 }
 
+function ShopHeroEditor({ initial }: { initial: ShopHeroContent }) {
+  const [v, setV] = useState(initial);
+  const [state, setState] = useState<SaveState>("idle");
+  async function save() {
+    setState("saving");
+    const res = await saveSiteContent("shopHero", v);
+    setState(res.ok ? "ok" : "err");
+  }
+  return (
+    <div className="adm-section">
+      <div className="adm-section__hd">Shop page banner — &ldquo;The Collection&rdquo;</div>
+      <p className="adm-hint">The static hero banner at the top of every /shop view (all products, and every category/league filter — it&rsquo;s one page underneath).</p>
+      <ImageField label="Image (desktop — wide banner)" value={v.image} field="shophero-image" section="shopHero"
+        onChange={(image) => setV({ ...v, image })} />
+      <ImageField label="Image (mobile — falls back to the desktop image if left blank)" value={v.imageMobile ?? ""} field="shophero-image-mobile" section="shopHero"
+        onChange={(imageMobile) => setV({ ...v, imageMobile })} />
+      <label className="adm-content-label">Alt text (for accessibility/screen readers)
+        <input className="adm-input adm-input--block" value={v.alt} onChange={(e) => setV({ ...v, alt: e.target.value })} />
+      </label>
+      <div style={{ marginTop: 12 }}>
+        <SaveButton state={state} onClick={save} />
+      </div>
+    </div>
+  );
+}
+
 function PickTileFields({ label, tile, fieldPrefix, showCta, onChange }: {
   label: string; tile: PicksContent["hero"]; fieldPrefix: string; showCta?: boolean;
   onChange: (patch: Partial<PicksContent["hero"]>) => void;
@@ -538,6 +564,7 @@ export function ContentEditor({ content }: { content: SiteContent }) {
     <div className="adm-content-editor">
       <TypographyEditor initial={content.typography} />
       <HeroEditor initial={content.hero} />
+      <ShopHeroEditor initial={content.shopHero} />
       <PicksEditor initial={content.picks} />
       <SplitEditor initial={content.split} />
       <NewArrivalsEditor initial={content.newArrivals} />

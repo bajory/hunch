@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { ShopGrid } from "@/components/shop/ShopGrid";
-import { SplitTextReveal } from "@/components/motion/SplitTextReveal";
+import { ShopHero } from "@/components/shop/ShopHero";
 import { getCatalogFresh } from "@/lib/cms";
 import { getShopProductsFresh } from "@/lib/products-db";
+import { getSiteContentFresh } from "@/lib/site-content";
 import { PRODUCT_TYPE_DEFS, KIT_TYPE_LABELS, type LeagueId, type ProductType, type ProductKitType } from "@/lib/products";
 
 export const dynamic = "force-dynamic";
@@ -26,19 +27,19 @@ export default async function ShopPage({ searchParams }: Props) {
 
   // Live: products come from the admin-managed catalog, and an admin-uploaded
   // kit photo overrides the bundled image immediately.
-  const [products, { print }] = await Promise.all([
+  const [products, { print }, content] = await Promise.all([
     getShopProductsFresh(),
     getCatalogFresh(),
+    getSiteContentFresh(),
   ]);
 
   return (
-    <main className="shop wrap">
-      <span className="microlabel microlabel--brass">The Collection</span>
-      <SplitTextReveal as="h1" className="shop__title" immediate>
-        Every shirt, one standard.
-      </SplitTextReveal>
-      <ShopGrid products={products} initialKind={initialKind} initialLeague={initialLeague}
-        initialType={initialType} initialKitType={initialKitType} printMap={print} />
+    <main>
+      <ShopHero content={content.shopHero} />
+      <div className="shop wrap">
+        <ShopGrid products={products} initialKind={initialKind} initialLeague={initialLeague}
+          initialType={initialType} initialKitType={initialKitType} printMap={print} />
+      </div>
     </main>
   );
 }

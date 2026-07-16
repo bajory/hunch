@@ -23,6 +23,15 @@ export interface HeroContent {
   slides: HeroSlide[];
 }
 
+/** The static banner atop /shop — same desktop/tall vs mobile/wide photo
+    split as PickTile, since one photo composed for a wide banner rarely
+    also suits a short mobile strip. */
+export interface ShopHeroContent {
+  image: string;
+  imageMobile?: string;
+  alt: string;
+}
+
 export interface SplitPanel {
   kicker: string;
   title: string;
@@ -118,6 +127,7 @@ export interface TypographyContent {
 
 export interface SiteContent {
   hero: HeroContent;
+  shopHero: ShopHeroContent;
   picks: PicksContent;
   split: SplitContent;
   craft: CraftContent;
@@ -152,6 +162,10 @@ export const SITE_CONTENT_DEFAULTS: SiteContent = {
         sub: "Player-version tournament shirts from 17 nations, sold blank the way they arrive.",
       },
     ],
+  },
+  shopHero: {
+    image: "/img/products/barcelona/home/back.png",
+    alt: "FC Barcelona 26/27 home jersey, back view",
   },
   picks: {
     hero: {
@@ -243,6 +257,7 @@ function mergeAll(rows: SiteContentRow[]): SiteContent {
   const bySection = new Map(rows.map((r) => [r.section, r.data]));
   return {
     hero:    mergeSection(SITE_CONTENT_DEFAULTS.hero,    bySection.get("hero")),
+    shopHero: mergeSection(SITE_CONTENT_DEFAULTS.shopHero, bySection.get("shopHero")),
     picks:   mergeSection(SITE_CONTENT_DEFAULTS.picks,   bySection.get("picks")),
     split:   mergeSection(SITE_CONTENT_DEFAULTS.split,   bySection.get("split")),
     craft:   mergeSection(SITE_CONTENT_DEFAULTS.craft,   bySection.get("craft")),

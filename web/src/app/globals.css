@@ -113,7 +113,7 @@ html[data-theme="dark"] {
 /* Photo scenes (and the footer) stay dark in BOTH themes — the photography
    lives in a spotlight, and the footer closes the page on the same dark
    note regardless of which theme the rest of the site is in. */
-.hero, .split, .house__hero, .footer {
+.hero, .shop-hero, .split, .house__hero, .footer {
   --ground-rgb: 10, 9, 8;
   --void:     #0A0908;
   --carbon:   #131110;
@@ -228,6 +228,7 @@ body {
 
 /* Over a dark photo hero the unscrolled nav must read light regardless of theme */
 body:has(.hero) .nav:not(.is-solid),
+body:has(.shop-hero) .nav:not(.is-solid),
 body:has(.house__hero) .nav:not(.is-solid) {
   --bone:       #EDEAE3;
   --bone-dim:   rgba(237, 234, 227, 0.56);
@@ -1228,14 +1229,67 @@ body:has(.house__hero) .nav:not(.is-solid) {
 
 /* ── Shop ───────────────────────────────────────────────────────────────── */
 
-.shop { padding-top: calc(var(--nav-h) + clamp(40px, 8vh, 96px)); }
-.shop__title {
-  font-family: var(--font-display);
-  font-size: var(--t-display);
-  color: var(--bone);
-  margin-bottom: 10px;
-}
+/* The shop hero banner now sits above and handles clearing the fixed nav —
+   this just needs normal section spacing before the filter bar/grid. */
+.shop { padding-top: clamp(32px, 5vh, 56px); }
 .shop__count { color: var(--bone-faint); font-size: var(--t-small); font-variant-numeric: tabular-nums; }
+
+/* ── Shop hero (static banner, admin-set image) ───────────────────────────
+   Same visual language as the homepage .hero (full-bleed photo, dark
+   scrim, overlaid kicker/title) but shorter and without the carousel — a
+   listing page needs one settled image, not a slideshow, and shouldn't
+   push products too far below the fold. */
+.shop-hero {
+  position: relative;
+  background: var(--void);
+  height: 46vh;
+  min-height: 320px;
+  max-height: 520px;
+  overflow: clip;
+  display: flex;
+  align-items: flex-end;
+}
+.shop-hero__media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+}
+.shop-hero__img {
+  grid-area: 1 / 1; /* stack desktop/mobile photo in the same cell — only
+    one is ever visible, toggled below, like .picks__img does. */
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+}
+.shop-hero__img--mobile { display: none; }
+.shop-hero__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(10,9,8,0.42) 0%, rgba(10,9,8,0.04) 40%, rgba(10,9,8,0.86) 100%);
+}
+.shop-hero__content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding: 0 var(--gutter) clamp(32px, 6vh, 56px);
+}
+.shop-hero__title {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: var(--t-display);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  color: var(--bone);
+  margin-top: 10px;
+}
+@media (max-width: 760px) {
+  .shop-hero { height: 38vh; min-height: 260px; }
+  .shop-hero__img--desktop { display: none; }
+  .shop-hero__img--mobile { display: block; }
+}
 
 .filterbar {
   position: sticky;
