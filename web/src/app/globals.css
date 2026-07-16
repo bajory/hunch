@@ -724,7 +724,10 @@ body:has(.house__hero) .nav:not(.is-solid) {
    Provenance band uses) rather than the site's photo-scrim tile language —
    this section is a direct, literal reference match. ───────────────────── */
 
-.picks { padding-block: clamp(28px, 4vh, 48px) 14px; background: var(--paper); }
+/* No background of its own — each tile below (.picks__hero, .picks__tile)
+   already carries its own card background, so wrapping the whole section
+   in another one just doubled up as a dull band behind them. */
+.picks { padding-block: clamp(28px, 4vh, 48px) 14px; }
 .picks__grid {
   max-width: var(--maxw);
   margin-inline: auto;
@@ -738,7 +741,7 @@ body:has(.house__hero) .nav:not(.is-solid) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  background: var(--paper-2);
+  background: var(--carbon-2);
   text-decoration: none;
   min-height: 340px;
 }
@@ -777,17 +780,17 @@ body:has(.house__hero) .nav:not(.is-solid) {
   letter-spacing: -0.02em;
   line-height: 1.05;
   font-size: clamp(1.6rem, 3vw, 2.2rem);
-  color: var(--ink);
+  color: var(--bone);
 }
-.picks__hero-body p { color: var(--ink-dim); font-size: var(--t-small); max-width: 38ch; }
+.picks__hero-body p { color: var(--bone-dim); font-size: var(--t-small); max-width: 38ch; }
 
 .picks__btn {
   display: inline-flex;
   align-items: center;
   padding: 12px 24px;
   border-radius: 999px;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--bone);
+  color: var(--void);
   font-size: 0.85rem;
   font-weight: 500;
   transition: opacity 0.25s var(--ease);
@@ -798,7 +801,7 @@ body:has(.house__hero) .nav:not(.is-solid) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  background: var(--paper-2);
+  background: var(--carbon-2);
   text-decoration: none;
   min-height: 260px;
 }
@@ -818,9 +821,9 @@ body:has(.house__hero) .nav:not(.is-solid) {
   letter-spacing: -0.01em;
   line-height: 1.2;
   font-size: clamp(1.05rem, 1.6vw, 1.3rem);
-  color: var(--ink);
+  color: var(--bone);
 }
-.picks__tile-body p { color: var(--ink-dim); font-size: var(--t-small); max-width: 26ch; }
+.picks__tile-body p { color: var(--bone-dim); font-size: var(--t-small); max-width: 26ch; }
 
 @media (max-width: 760px) {
   .picks__hero { grid-template-columns: 1fr; min-height: 0; }
