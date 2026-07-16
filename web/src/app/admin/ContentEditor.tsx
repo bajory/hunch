@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SiteContent, HeroContent, ShopHeroContent, PicksContent, SplitContent, CraftContent, MarqueeContent, HighlightsContent, NewArrivalsContent, TypographyContent } from "@/lib/site-content";
 import { SERIF_FONTS, SANS_FONTS } from "@/lib/fonts";
-import { saveSiteContent, uploadSiteImage, uploadSiteVideo, uploadSiteFont } from "./content-actions";
+import { saveSiteContent, uploadSiteImage, createSignedVideoUploadUrl, uploadSiteFont } from "./content-actions";
+import { supabase } from "@/lib/supabase";
 
 /** Injects (or replaces) an @font-face rule client-side, purely so the admin
     preview below can render an uploaded custom font before it's even saved. */
@@ -27,13 +28,21 @@ function ImageField({ label, value, onChange, section, field }: {
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     setBusy(true); setErr(null);
-    const fd = new FormData();
-    fd.append("section", section); fd.append("field", field); fd.append("file", file);
-    const res = await uploadSiteImage(fd);
-    if (res.ok && res.url) onChange(res.url);
-    else setErr(res.error ?? "Upload failed");
-    setBusy(false);
-    e.target.value = "";
+    try {
+      const fd = new FormData();
+      fd.append("section", section); fd.append("field", field); fd.append("file", file);
+      const res = await uploadSiteImage(fd);
+      if (res.ok && res.url) onChange(res.url);
+      else setErr(res.error ?? "Upload failed");
+    } catch (e) {
+      // Without this, a thrown/rejected upload (oversized payload, network
+      // drop, anything) left `busy` stuck true forever — the button just
+      // read "Uploading…" with no way out and no error shown.
+      setErr(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setBusy(false);
+      e.target.value = "";
+    }
   }
 
   return (
@@ -63,13 +72,31 @@ function VideoField({ label, value, onChange, onRemove, section, field }: {
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     setBusy(true); setErr(null);
-    const fd = new FormData();
-    fd.append("section", section); fd.append("field", field); fd.append("file", file);
-    const res = await uploadSiteVideo(fd);
-    if (res.ok && res.url) onChange(res.url);
-    else setErr(res.error ?? "Upload failed");
-    setBusy(false);
-    e.target.value = "";
+    try {
+      if (!supabase) throw new Error("Supabase isn't configured in this environment");
+      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+      // Vercel hard-caps every Function's request body at 4.5MB (not
+      // configurable — next.config's serverActions.bodySizeLimit only ever
+      // did anything locally), and any real video clip exceeds that. So the
+      // video's bytes never go through a Vercel Function at all: this asks
+      // the server (which holds the admin key) for a short-lived signed
+      // upload URL, then PUTs the file straight from the browser to
+      // Supabase Storage.
+      const res = await createSignedVideoUploadUrl(section, field, ext);
+      if (!res.ok || !res.token || !res.path || !res.publicUrl) {
+        setErr(res.error ?? "Upload failed");
+        return;
+      }
+      const { error: upErr } = await supabase.storage.from("jersey-photos")
+        .uploadToSignedUrl(res.path, res.token, file, { contentType: file.type || "video/mp4" });
+      if (upErr) { setErr(upErr.message); return; }
+      onChange(res.publicUrl);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setBusy(false);
+      e.target.value = "";
+    }
   }
 
   return (

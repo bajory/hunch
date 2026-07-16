@@ -36,23 +36,23 @@ export async function uploadSiteImage(formData: FormData): Promise<{ ok: boolean
   return { ok: true, url: `${data.publicUrl}?v=${Date.now()}` };
 }
 
-/** Same as uploadSiteImage but for looping background video (e.g. the hero). */
-export async function uploadSiteVideo(formData: FormData): Promise<{ ok: boolean; url?: string; error?: string }> {
+/** Videos don't go through this server action at all — Vercel hard-caps every
+    Function's request body at 4.5MB (not configurable, unaffected by
+    next.config's serverActions.bodySizeLimit, which only ever applied
+    locally), and any real video clip exceeds that. Instead this hands back
+    a short-lived signed upload URL + the eventual public URL; the browser
+    PUTs the actual video bytes straight to Supabase Storage, never touching
+    a Vercel Function. See VideoField's handleFile in ContentEditor.tsx. */
+export async function createSignedVideoUploadUrl(
+  section: string, field: string, ext: string,
+): Promise<{ ok: boolean; signedUrl?: string; token?: string; path?: string; publicUrl?: string; error?: string }> {
   const admin = createAdminClient();
   if (!admin) return noAdmin();
-  const section = formData.get("section") as string;
-  const field   = formData.get("field") as string;
-  const file    = formData.get("file") as File;
-  const ext     = file.name.split(".").pop() ?? "mp4";
-  const path    = `site/${section}/${field}.${ext}`;
-  const buf     = await file.arrayBuffer();
-  const { error: upErr } = await admin.storage.from("jersey-photos").upload(path, buf, {
-    contentType: file.type || "video/mp4",
-    upsert: true,
-  });
-  if (upErr) return { ok: false, error: upErr.message };
-  const { data } = admin.storage.from("jersey-photos").getPublicUrl(path);
-  return { ok: true, url: `${data.publicUrl}?v=${Date.now()}` };
+  const path = `site/${section}/${field}.${ext}`;
+  const { data, error } = await admin.storage.from("jersey-photos").createSignedUploadUrl(path, { upsert: true });
+  if (error || !data) return { ok: false, error: error?.message ?? "Could not create upload URL" };
+  const { data: pub } = admin.storage.from("jersey-photos").getPublicUrl(path);
+  return { ok: true, signedUrl: data.signedUrl, token: data.token, path, publicUrl: `${pub.publicUrl}?v=${Date.now()}` };
 }
 
 const FONT_MIME: Record<string, string> = {
