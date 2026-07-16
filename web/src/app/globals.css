@@ -815,11 +815,12 @@ body:has(.house__hero) .nav:not(.is-solid) {
 
 @media (max-width: 760px) {
   .picks__hero { grid-template-columns: 1fr; min-height: 0; }
-  .picks__hero-media { display: none; }
+  /* Stacks above the body (media comes first in DOM order) instead of
+     being hidden — with the section now admin-set per tile, a blank grey
+     box where the hero's own image should be reads as broken, not clean. */
+  .picks__hero-media { height: 240px; }
   .picks__hero-body { padding: 40px clamp(20px, 6vw, 40px); align-items: center; text-align: center; }
   .picks__grid { grid-template-columns: 1fr; }
-  /* Small tiles stay side-by-side rows (image + text), just narrower —
-     only the hero drops its image on mobile. */
   .picks__tile, .picks__tile--reverse { min-height: 200px; }
   .picks__hero-media img, .picks__tile-media img { max-width: 100%; }
 }
