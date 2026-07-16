@@ -745,6 +745,7 @@ body:has(.house__hero) .nav:not(.is-solid) {
 .picks__hero-media, .picks__tile-media {
   display: grid;
   place-items: center;
+  overflow: clip;
 }
 .picks__hero-media img, .picks__tile-media img {
   width: 100%; height: 100%;
