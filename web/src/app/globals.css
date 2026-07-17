@@ -1090,16 +1090,28 @@ body:has(.house__hero) .nav:not(.is-solid) {
 /* ── Highlights (video-capable story cards) ──────────────────────────────── */
 
 .hl { padding-block: clamp(56px, 9vh, 120px); background: var(--void); }
-.hl__strip {
+/* Same split as .rail__pin/.rail__track: a scrolling wrapper with no
+   padding of its own, plus an inner width:max-content track carrying the
+   padding-inline as real content width. .hl__strip used to be the "wrap"
+   class directly on the scrolling element itself — padding-inline and
+   overflow-x:auto on the SAME element is a browser quirk where the start
+   padding isn't rendered as inset space before the first card, so the
+   first card sat flush against the screen edge. */
+.hl__scroller {
   margin-top: clamp(28px, 5vh, 48px);
-  display: flex;
-  gap: 14px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-.hl__strip::-webkit-scrollbar { display: none; }
+.hl__scroller::-webkit-scrollbar { display: none; }
+.hl__strip {
+  display: flex;
+  gap: 14px;
+  width: max-content;
+  padding-inline: var(--gutter);
+}
 .hl__card {
   position: relative;
   scroll-snap-align: start;
