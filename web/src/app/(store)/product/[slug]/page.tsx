@@ -9,7 +9,10 @@ import { ProductCard } from "@/components/shop/ProductCard";
 import { Reveal } from "@/components/motion/Reveal";
 import type { Team, Competition } from "@/lib/catalog";
 
-export const dynamic = "force-dynamic";
+// Tag-cached, not force-dynamic — see the architecture migration's step 3.
+// getProductBySlugFresh/getCatalogFresh are each backed by unstable_cache
+// now; admin writes and the Shopify webhook call revalidateTag directly,
+// so this still reflects edits immediately.
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -28,8 +31,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
-  // force-dynamic PDP reads catalog + calibration uncached, so an admin save
-  // (product edit, photo, geometry, colours) shows on the very next load.
+  // Tag-cached reads (see top of file) — an admin save (product edit, photo,
+  // geometry, colours) revalidates its tag directly, so this still shows on
+  // the very next load without needing every request to hit Supabase.
   const [{ product, all }, { teams, competitions, print }] = await Promise.all([
     getProductBySlugFresh(slug),
     getCatalogFresh(),

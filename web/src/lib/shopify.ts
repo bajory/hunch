@@ -54,7 +54,11 @@ export interface CartState {
   currencyCode: string;
 }
 
-async function storefront<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+async function storefront<T>(
+  query: string,
+  variables: Record<string, unknown> = {},
+  cache?: { tags: string[] },
+): Promise<T> {
   if (!isShopifyConfigured()) throw new Error("Shopify is not configured");
   const res = await fetch(`https://${DOMAIN}/api/${API_VERSION}/graphql.json`, {
     method: "POST",
@@ -63,10 +67,104 @@ async function storefront<T>(query: string, variables: Record<string, unknown> =
       "X-Shopify-Storefront-Access-Token": TOKEN as string,
     },
     body: JSON.stringify({ query, variables }),
+    // Mutations (cart create/update) never pass `cache` and stay uncached,
+    // same as before this parameter existed — only callers that opt in
+    // (getLiveProductData below) are cached and tag-revalidated.
+    ...(cache ? { next: { tags: cache.tags } } : {}),
   });
   const json = await res.json();
   if (json.errors) throw new Error(JSON.stringify(json.errors));
   return json.data as T;
+}
+
+/** Tag naming shared with the webhook receiver, which calls
+    revalidateTag(shopifyProductCacheTag(gid)) on products/update. */
+export function shopifyProductCacheTag(shopifyProductId: string): string {
+  return `shopify-product:${shopifyProductId}`;
+}
+
+export interface LiveVariant {
+  variantId: string;
+  size: string;
+  price: string;
+  availableForSale: boolean;
+}
+export interface LiveProductData {
+  price: string;
+  currencyCode: string;
+  variants: LiveVariant[];
+}
+
+interface RawLiveProductNode {
+  id: string;
+  variants: {
+    nodes: {
+      id: string;
+      price: { amount: string; currencyCode: string };
+      availableForSale: boolean;
+      selectedOptions: { name: string; value: string }[];
+    }[];
+  };
+}
+
+/** Batched by design (one Storefront call for every product on the page,
+    not one call per product) — the shop grid alone can list 60+ products,
+    and Storefront API's `nodes(ids:)` supports fetching them together.
+    Each product's own cache tag still gets attached to this one fetch, so
+    revalidateTag on a single product (from the webhook) correctly expires
+    this entry and the next request refetches everyone fresh — a batched
+    cache entry with N tags, not N independent ones, which is the right
+    trade for avoiding an N+1 API call fan-out on every page load.
+
+    Deliberately doesn't request `quantityAvailable` — that field needs the
+    unauthenticated_read_product_inventory Storefront scope, which this
+    token doesn't have, and Shopify errors the *entire* query (not just
+    that field) when it's requested without access. availableForSale needs
+    no special scope and is enough to know purchasable vs not; the exact
+    count shown still comes from the Supabase mirror the webhook keeps
+    current (see products-db.ts's rowToProduct). */
+export async function getLiveProductData(shopifyProductIds: string[]): Promise<Map<string, LiveProductData>> {
+  const result = new Map<string, LiveProductData>();
+  if (shopifyProductIds.length === 0 || !isShopifyConfigured()) return result;
+
+  const query = `
+    query GetLiveProductData($ids: [ID!]!) {
+      nodes(ids: $ids) {
+        ... on Product {
+          id
+          variants(first: 20) {
+            nodes {
+              id
+              price { amount currencyCode }
+              availableForSale
+              selectedOptions { name value }
+            }
+          }
+        }
+      }
+    }`;
+
+  const d = await storefront<{ nodes: (RawLiveProductNode | null)[] }>(
+    query,
+    { ids: shopifyProductIds },
+    { tags: shopifyProductIds.map(shopifyProductCacheTag) },
+  );
+
+  for (const node of d.nodes) {
+    if (!node) continue;
+    const variants: LiveVariant[] = node.variants.nodes.map((v) => ({
+      variantId: v.id,
+      size: v.selectedOptions.find((o) => o.name === "Size")?.value ?? "",
+      price: v.price.amount,
+      availableForSale: v.availableForSale,
+    }));
+    result.set(node.id, {
+      price: variants[0]?.price ?? "0",
+      currencyCode: node.variants.nodes[0]?.price.currencyCode ?? "QAR",
+      variants,
+    });
+  }
+  return result;
 }
 
 const CART_FIELDS = `

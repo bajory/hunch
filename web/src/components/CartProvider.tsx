@@ -20,10 +20,6 @@ interface CartContextValue {
   addItem: (attributes: CartAttribute[], variantId: string) => Promise<void>;
   updateQuantity: (lineId: string, quantity: number) => Promise<void>;
   removeItem: (lineId: string) => Promise<void>;
-  /** Drops the local cart reference after a PayPal-path order is captured —
-      that payment never touches this Shopify cart, so it must not be
-      reused for a future order. A fresh cart is created on the next add. */
-  clearCart: () => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -99,11 +95,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     [cart],
   );
 
-  const clearCart = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setCart(null);
-  }, []);
-
   return (
     <CartContext.Provider
       value={{
@@ -117,7 +108,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         addItem,
         updateQuantity,
         removeItem,
-        clearCart,
       }}
     >
       {children}

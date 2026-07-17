@@ -1,9 +1,8 @@
 "use server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import { invalidateCatalogCache } from "@/lib/cms";
 import type { KitTypeId } from "./types";
 
 export async function signOut() {
@@ -15,7 +14,7 @@ export async function signOut() {
 function noAdmin() { return { ok: false as const, error: "Add SUPABASE_SERVICE_ROLE_KEY to .env.local to enable saves" }; }
 
 function revalidateTeam(teamId: string) {
-  invalidateCatalogCache();
+  revalidateTag("catalog", { expire: 0 });
   revalidatePath(`/product/${teamId}-home`);
   revalidatePath(`/product/${teamId}-away`);
   revalidatePath("/shop");
@@ -330,7 +329,7 @@ export async function createKitAndGo(formData: FormData) {
       ...(source ? pickStyling(source) : {}),
     });
     if (source) await copyGlyphs(admin, teamId, source.competition_id, source.kit_type ?? "home", competitionId, kitType);
-    invalidateCatalogCache();
+    revalidateTag("catalog", { expire: 0 });
   }
   redirect(`/admin/kits/${teamId}/${competitionId}/${kitType}`);
 }

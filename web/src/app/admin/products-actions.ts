@@ -1,7 +1,7 @@
 "use server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { syncProductToShopify } from "@/lib/shopify-sync";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import type { AdminProductRow } from "./types";
 
@@ -14,6 +14,7 @@ function cacheBust(url: string): string {
 }
 
 function revalidateProduct(slug: string) {
+  revalidateTag("products", { expire: 0 });
   revalidatePath(`/product/${slug}`);
   revalidatePath("/shop");
   revalidatePath("/");
@@ -176,6 +177,7 @@ export async function toggleTeamPublished(formData: FormData): Promise<void> {
   const teamId = formData.get("teamId") as string;
   const publish = formData.get("publish") === "true";
   await admin.from("teams").update({ is_published: publish }).eq("id", teamId);
+  revalidateTag("products", { expire: 0 }); // products join teams for name/kind/league
   revalidatePath("/admin/teams");
   revalidatePath("/shop");
   revalidatePath("/");

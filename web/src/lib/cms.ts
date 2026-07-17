@@ -3,6 +3,7 @@
  * Queries Supabase when NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY
  * are set; falls back to local catalog.ts so dev always works without credentials.
  */
+import { unstable_cache } from "next/cache";
 import { supabase } from "./supabase";
 import { createAdminClient } from "./supabase-admin";
 import {
@@ -295,52 +296,26 @@ async function fetchFromSupabase(): Promise<CatalogData> {
 
 // ─── Public API ──────────────────────────────────────────────
 
-let cache: { data: CatalogData; ts: number } | null = null;
-const CACHE_TTL = 60_000;
+const fallbackCatalog: CatalogData = {
+  teams:        TEAMS as unknown as Record<string, Team>,
+  competitions: COMPETITIONS as unknown as Record<string, Competition>,
+  print:        PRINT,
+};
 
-export function invalidateCatalogCache() { cache = null; }
+/** Tag-cached (see the architecture migration's step 3) — replaces the old
+    hand-rolled in-memory TTL cache, which didn't actually help: it was
+    per-serverless-instance, so an admin edit could still show stale data
+    to a user landed on a different instance. revalidateTag propagates
+    everywhere; the old cache couldn't. A day-long time-based fallback
+    backs the tag in case a write path ever misses revalidateTag, but
+    every kit-studio/team write calls revalidateTag('catalog', ...)
+    directly, so in practice this refreshes immediately on change. */
+const cachedFetchFromSupabase = unstable_cache(fetchFromSupabase, ["catalog"], {
+  tags: ["catalog"],
+  revalidate: 86_400,
+});
 
-export async function getCatalog(): Promise<CatalogData> {
-  // Use local catalog when Supabase is not configured
-  if (!supabase) {
-    return {
-      teams:        TEAMS as unknown as Record<string, Team>,
-      competitions: COMPETITIONS as unknown as Record<string, Competition>,
-      print:        PRINT,
-    };
-  }
-
-  const now = Date.now();
-  if (cache && now - cache.ts < CACHE_TTL) return cache.data;
-
-  try {
-    const data = await fetchFromSupabase();
-    cache = { data, ts: now };
-    return data;
-  } catch {
-    // On error, serve stale cache or fall back to local catalog
-    if (cache) return cache.data;
-    console.warn("[cms] Supabase unavailable — using local catalog fallback");
-    return {
-      teams:        TEAMS as unknown as Record<string, Team>,
-      competitions: COMPETITIONS as unknown as Record<string, Competition>,
-      print:        PRINT,
-    };
-  }
-}
-
-/** Server-side variant — no in-memory cache (each RSC render gets fresh data). */
 export async function getCatalogFresh(): Promise<CatalogData> {
-  if (!supabase) {
-    return {
-      teams:        TEAMS as unknown as Record<string, Team>,
-      competitions: COMPETITIONS as unknown as Record<string, Competition>,
-      print:        PRINT,
-    };
-  }
-  return fetchFromSupabase().catch(() => ({
-    teams:        TEAMS as unknown as Record<string, Team>,
-    competitions: COMPETITIONS as unknown as Record<string, Competition>,
-    print:        PRINT,
-  }));
+  if (!supabase) return fallbackCatalog;
+  return cachedFetchFromSupabase().catch(() => fallbackCatalog);
 }

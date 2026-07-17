@@ -6,7 +6,10 @@ import { getShopProductsFresh } from "@/lib/products-db";
 import { getSiteContentFresh } from "@/lib/site-content";
 import { PRODUCT_TYPE_DEFS, KIT_TYPE_LABELS, type LeagueId, type ProductType, type ProductKitType } from "@/lib/products";
 
-export const dynamic = "force-dynamic";
+// Tag-cached, not force-dynamic — see the architecture migration's step 3.
+// getShopProductsFresh/getCatalogFresh/getSiteContentFresh are each backed
+// by unstable_cache now; admin writes and the Shopify webhook call
+// revalidateTag directly, so this still reflects edits immediately.
 
 export const metadata: Metadata = {
   title: "Shop — HUNCH",

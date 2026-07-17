@@ -15,6 +15,7 @@ const CLIENT_ID = process.env.SHOPIFY_ADMIN_CLIENT_ID;
 const CLIENT_SECRET = process.env.SHOPIFY_ADMIN_CLIENT_SECRET;
 const LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 const HEADLESS_PUBLICATION_ID = process.env.SHOPIFY_HEADLESS_PUBLICATION_ID;
+const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "https://hunchhouse.com";
 const API_VERSION = "2025-01";
 
 export function isShopifyAdminConfigured(): boolean {
@@ -262,31 +263,113 @@ export async function setInventoryQuantity(inventoryItemId: string, quantity: nu
   if (errs.length > 0) throw new Error(`inventorySetQuantities failed: ${JSON.stringify(errs)}`);
 }
 
-/** Decrements (or increments, given a positive delta) on-hand quantity for
-    one variant — used by the PayPal capture route to reflect a sale Shopify
-    never saw itself. Delta-based (inventoryAdjustQuantities), not the
-    read-then-set setInventoryQuantity above — that pairing is racy under
-    concurrent orders; this mutation is atomic on Shopify's side. */
-export async function adjustInventoryQuantity(inventoryItemId: string, delta: number): Promise<void> {
-  if (!LOCATION_ID) throw new Error("SHOPIFY_LOCATION_ID is not configured");
+/* =========================================================================
+   Webhook subscriptions — previously created once by hand directly against
+   the Admin API, invisible to the repo (see the architecture review: a
+   deleted subscription meant price/stock sync went silently stale with no
+   error anywhere). REQUIRED_WEBHOOKS is the single source of truth for
+   which topics the receiver at app/api/webhooks/shopify needs; syncing
+   is idempotent, so it's safe to run on every deploy.
+   ========================================================================= */
 
-  const query = `
-    mutation InventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!) {
-      inventoryAdjustQuantities(input: $input) {
+export const REQUIRED_WEBHOOK_TOPICS = ["PRODUCTS_UPDATE", "INVENTORY_LEVELS_UPDATE"] as const;
+
+export interface WebhookSyncResult {
+  topic: string;
+  action: "created" | "already-correct" | "url-updated" | "duplicates-removed";
+}
+
+interface ExistingWebhookSubscription {
+  id: string;
+  topic: string;
+  endpoint: { __typename: string; callbackUrl?: string };
+}
+
+/** Self-healing, not just additive: converges each required topic to
+    exactly one subscription pointed at this deploy's callback URL,
+    regardless of what's already there — fixes a stale URL (e.g. a
+    subscription still pointing at the old hunchhouse.vercel.app domain
+    instead of the custom domain) in place rather than leaving it beside a
+    newly-created duplicate, and removes any extra duplicates for the same
+    topic. Re-running is always a no-op once converged. */
+export async function syncWebhookSubscriptions(): Promise<WebhookSyncResult[]> {
+  const callbackUrl = `${SITE_ORIGIN}/api/webhooks/shopify`;
+
+  const listQuery = `
+    query ListWebhooks {
+      webhookSubscriptions(first: 50) {
+        nodes {
+          id
+          topic
+          endpoint {
+            __typename
+            ... on WebhookHttpEndpoint { callbackUrl }
+          }
+        }
+      }
+    }`;
+  const listed = await adminGraphQL<{ webhookSubscriptions: { nodes: ExistingWebhookSubscription[] } }>(listQuery);
+
+  const createMutation = `
+    mutation CreateWebhook($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
+      webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+        webhookSubscription { id topic }
+        userErrors { field message }
+      }
+    }`;
+  const updateMutation = `
+    mutation UpdateWebhook($id: ID!, $webhookSubscription: WebhookSubscriptionInput!) {
+      webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+        webhookSubscription { id topic }
+        userErrors { field message }
+      }
+    }`;
+  const deleteMutation = `
+    mutation DeleteWebhook($id: ID!) {
+      webhookSubscriptionDelete(id: $id) {
         userErrors { field message }
       }
     }`;
 
-  const d = await adminGraphQL<{ inventoryAdjustQuantities: { userErrors: { field: string[]; message: string }[] } }>(
-    query,
-    {
-      input: {
-        name: "available",
-        reason: "correction",
-        changes: [{ delta, inventoryItemId, locationId: LOCATION_ID }],
-      },
-    },
-  );
-  const errs = d.inventoryAdjustQuantities.userErrors;
-  if (errs.length > 0) throw new Error(`inventoryAdjustQuantities failed: ${JSON.stringify(errs)}`);
+  const results: WebhookSyncResult[] = [];
+  for (const topic of REQUIRED_WEBHOOK_TOPICS) {
+    const existingForTopic = listed.webhookSubscriptions.nodes.filter((n) => n.topic === topic);
+
+    if (existingForTopic.length === 0) {
+      const d = await adminGraphQL<{
+        webhookSubscriptionCreate: {
+          webhookSubscription: { id: string; topic: string } | null;
+          userErrors: { field: string[]; message: string }[];
+        };
+      }>(createMutation, { topic, webhookSubscription: { callbackUrl, format: "JSON" } });
+      const errs = d.webhookSubscriptionCreate.userErrors;
+      if (errs.length > 0) throw new Error(`webhookSubscriptionCreate(${topic}) failed: ${JSON.stringify(errs)}`);
+      results.push({ topic, action: "created" });
+      continue;
+    }
+
+    const [keep, ...extras] = existingForTopic;
+    for (const extra of extras) {
+      const d = await adminGraphQL<{ webhookSubscriptionDelete: { userErrors: { field: string[]; message: string }[] } }>(
+        deleteMutation, { id: extra.id },
+      );
+      const errs = d.webhookSubscriptionDelete.userErrors;
+      if (errs.length > 0) throw new Error(`webhookSubscriptionDelete(${extra.id}) failed: ${JSON.stringify(errs)}`);
+    }
+
+    if (keep.endpoint.callbackUrl !== callbackUrl) {
+      const d = await adminGraphQL<{
+        webhookSubscriptionUpdate: {
+          webhookSubscription: { id: string; topic: string } | null;
+          userErrors: { field: string[]; message: string }[];
+        };
+      }>(updateMutation, { id: keep.id, webhookSubscription: { callbackUrl, format: "JSON" } });
+      const errs = d.webhookSubscriptionUpdate.userErrors;
+      if (errs.length > 0) throw new Error(`webhookSubscriptionUpdate(${keep.id}) failed: ${JSON.stringify(errs)}`);
+      results.push({ topic, action: "url-updated" });
+    } else {
+      results.push({ topic, action: extras.length > 0 ? "duplicates-removed" : "already-correct" });
+    }
+  }
+  return results;
 }

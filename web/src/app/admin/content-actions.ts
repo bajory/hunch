@@ -1,6 +1,6 @@
 "use server";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import type { SiteContent } from "@/lib/site-content";
 
 function noAdmin() { return { ok: false as const, error: "Add SUPABASE_SERVICE_ROLE_KEY to .env.local to enable saves" }; }
@@ -12,6 +12,7 @@ export async function saveSiteContent(
   if (!admin) return noAdmin();
   const { error } = await admin.from("site_content").upsert({ section, data, updated_at: new Date().toISOString() });
   if (error) return { ok: false, error: error.message };
+  revalidateTag("site-content", { expire: 0 });
   revalidatePath("/");
   return { ok: true };
 }

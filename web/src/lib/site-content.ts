@@ -5,6 +5,7 @@
  * to the defaults below, which mirror what was previously hardcoded — the
  * homepage renders identically if the table doesn't exist yet or is empty.
  */
+import { unstable_cache } from "next/cache";
 import { supabase } from "./supabase";
 import { createAdminClient } from "./supabase-admin";
 import { DEFAULT_SERIF_ID, DEFAULT_SANS_ID } from "./fonts";
@@ -275,23 +276,37 @@ async function fetchSiteContent(): Promise<SiteContent> {
   return mergeAll((data as SiteContentRow[]) ?? []);
 }
 
-/** Server-side, uncached — used on the homepage so an admin edit shows on next load. */
+/** Tag-cached (see the architecture migration's step 3) — saveSiteContent
+    calls revalidateTag('site-content', ...) on every admin write, so this
+    updates immediately rather than waiting out the day-long fallback. */
+const cachedFetchSiteContent = unstable_cache(fetchSiteContent, ["site-content"], {
+  tags: ["site-content"],
+  revalidate: 86_400,
+});
+
 export async function getSiteContentFresh(): Promise<SiteContent> {
   if (!supabase) return SITE_CONTENT_DEFAULTS;
-  return fetchSiteContent().catch(() => SITE_CONTENT_DEFAULTS);
+  return cachedFetchSiteContent().catch(() => SITE_CONTENT_DEFAULTS);
+}
+
+async function fetchTypography(): Promise<TypographyContent> {
+  const db = createAdminClient() ?? supabase!;
+  const { data, error } = await db.from("site_content").select("data").eq("section", "typography").maybeSingle();
+  if (error || !data) return SITE_CONTENT_DEFAULTS.typography;
+  return mergeSection(SITE_CONTENT_DEFAULTS.typography, data.data);
 }
 
 /** Single-row fetch — the root layout reads only this on every page (not the
     full homepage content) so the font pick applies site-wide without paying
-    for hero slides/highlights/etc. on pages that don't render them. */
+    for hero slides/highlights/etc. on pages that don't render them. Tagged
+    with the same 'site-content' tag as the full fetch above, so one
+    revalidateTag call after an admin save invalidates both. */
+const cachedFetchTypography = unstable_cache(fetchTypography, ["site-content-typography"], {
+  tags: ["site-content"],
+  revalidate: 86_400,
+});
+
 export async function getTypographyFresh(): Promise<TypographyContent> {
   if (!supabase) return SITE_CONTENT_DEFAULTS.typography;
-  try {
-    const db = createAdminClient() ?? supabase!;
-    const { data, error } = await db.from("site_content").select("data").eq("section", "typography").maybeSingle();
-    if (error || !data) return SITE_CONTENT_DEFAULTS.typography;
-    return mergeSection(SITE_CONTENT_DEFAULTS.typography, data.data);
-  } catch {
-    return SITE_CONTENT_DEFAULTS.typography;
-  }
+  return cachedFetchTypography().catch(() => SITE_CONTENT_DEFAULTS.typography);
 }

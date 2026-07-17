@@ -15,7 +15,10 @@ import { CUSTOMIZATION_FEE } from "@/lib/catalog";
 import { getCatalogFresh } from "@/lib/cms";
 import { getSiteContentFresh } from "@/lib/site-content";
 
-export const dynamic = "force-dynamic";
+// Tag-cached, not force-dynamic — see the architecture migration's step 3.
+// getProductsFresh/getCatalogFresh/getSiteContentFresh are each backed by
+// unstable_cache now; admin writes and the Shopify webhook call
+// revalidateTag directly, so this still reflects edits immediately.
 
 export const metadata: Metadata = {
   title: "HUNCH — Authentic Matchwear",
