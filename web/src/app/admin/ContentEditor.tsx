@@ -17,8 +17,13 @@ function injectPreviewFontFace(id: string, url: string) {
 
 type SaveState = "idle" | "saving" | "ok" | "err";
 
-function ImageField({ label, value, onChange, section, field }: {
+function ImageField({ label, value, onChange, onRemove, section, field }: {
   label: string; value: string; onChange: (url: string) => void;
+  /** Only meaningful for genuinely optional images (e.g. a mobile-only
+      override that falls back to another image) — omit it for a field the
+      layout requires an image for, where there'd be nothing to fall back
+      to. Mirrors VideoField's own onRemove. */
+  onRemove?: () => void;
   section: keyof SiteContent; field: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,8 +57,9 @@ function ImageField({ label, value, onChange, section, field }: {
       <div className="adm-content-img__body">
         <span className="adm-font-slot__label">{label}</span>
         <button type="button" className={`adm-upload-btn${busy ? " is-busy" : ""}`} disabled={busy} onClick={() => inputRef.current?.click()}>
-          {busy ? "Uploading…" : "Replace image"}
+          {busy ? "Uploading…" : value ? "Replace image" : "Upload image"}
         </button>
+        {value && onRemove && <button type="button" className="adm-remove-btn" title="Remove image" onClick={onRemove}>✕</button>}
         {err && <span className="adm-content-img__err">{err}</span>}
       </div>
       <input ref={inputRef} type="file" accept="image/*" className="adm-file-input" onChange={handleFile} />
@@ -420,7 +426,8 @@ function ShopHeroEditor({ initial }: { initial: ShopHeroContent }) {
       <ImageField label="Image (desktop — wide banner)" value={v.image} field="shophero-image" section="shopHero"
         onChange={(image) => setV({ ...v, image })} />
       <ImageField label="Image (mobile — falls back to the desktop image if left blank)" value={v.imageMobile ?? ""} field="shophero-image-mobile" section="shopHero"
-        onChange={(imageMobile) => setV({ ...v, imageMobile })} />
+        onChange={(imageMobile) => setV({ ...v, imageMobile })}
+        onRemove={() => setV({ ...v, imageMobile: undefined })} />
       <label className="adm-content-label">Alt text (for accessibility/screen readers)
         <input className="adm-input adm-input--block" value={v.alt} onChange={(e) => setV({ ...v, alt: e.target.value })} />
       </label>
@@ -445,7 +452,8 @@ function PickTileFields({ label, tile, fieldPrefix, showCta, onChange }: {
         onChange={(image) => onChange({ image })} />
       <ImageField label="Image (mobile, single-column layout — a wide/landscape photo fits this short frame; falls back to the desktop image if left blank)"
         value={tile.imageMobile ?? ""} field={`${fieldPrefix}-image-mobile`} section="picks"
-        onChange={(imageMobile) => onChange({ imageMobile })} />
+        onChange={(imageMobile) => onChange({ imageMobile })}
+        onRemove={() => onChange({ imageMobile: undefined })} />
       <label className="adm-content-label">Title
         <input className="adm-input adm-input--block" value={tile.title} onChange={(e) => onChange({ title: e.target.value })} />
       </label>
